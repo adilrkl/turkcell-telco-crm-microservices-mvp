@@ -1,0 +1,158 @@
+version: "3.9"
+
+services:
+  postgres-identity-service:
+    image: postgres:16-alpine
+    container_name: postgres-identity-service
+    environment:
+      POSTGRES_DB: identity_db
+      POSTGRES_USER: identity_user
+      POSTGRES_PASSWORD: secret
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata-identity-service:/var/lib/postgresql/data
+    networks:
+      - telcocrm-net
+
+  postgres-customer-service:
+    image: postgres:16-alpine
+    container_name: postgres-customer-service
+    environment:
+      POSTGRES_DB: customer_db
+      POSTGRES_USER: customer_user
+      POSTGRES_PASSWORD: secret
+    ports:
+      - "5434:5432"
+    volumes:
+      - pgdata-customer-service:/var/lib/postgresql/data
+    networks:
+      - telcocrm-net
+
+  postgres-product-catalog-service:
+    image: postgres:16-alpine
+    container_name: postgres-product-catalog-service
+    environment:
+      POSTGRES_DB: catalog_db
+      POSTGRES_USER: product_catalog_user
+      POSTGRES_PASSWORD: secret
+    ports:
+      - "5435:5432"
+    volumes:
+      - pgdata-product-catalog-service:/var/lib/postgresql/data
+    networks:
+      - telcocrm-net
+
+  postgres-order-service:
+    image: postgres:16-alpine
+    container_name: postgres-order-service
+    environment:
+      POSTGRES_DB: order_db
+      POSTGRES_USER: order_user
+      POSTGRES_PASSWORD: secret
+    ports:
+      - "5436:5432"
+    volumes:
+      - pgdata-order-service:/var/lib/postgresql/data
+    networks:
+      - telcocrm-net
+
+  postgres-subscription-service:
+    image: postgres:16-alpine
+    container_name: postgres-subscription-service
+    environment:
+      POSTGRES_DB: subscription_db
+      POSTGRES_USER: subscription_user
+      POSTGRES_PASSWORD: secret
+    ports:
+      - "5437:5432"
+    volumes:
+      - pgdata-subscription-service:/var/lib/postgresql/data
+    networks:
+      - telcocrm-net
+
+  postgres-usage-service:
+    image: postgres:16-alpine
+    container_name: postgres-usage-service
+    environment:
+      POSTGRES_DB: usage_db
+      POSTGRES_USER: usage_user
+      POSTGRES_PASSWORD: secret
+    ports:
+      - "5438:5432"
+    volumes:
+      - pgdata-usage-service:/var/lib/postgresql/data
+    networks:
+      - telcocrm-net
+
+  postgres-billing-service:
+    image: postgres:16-alpine
+    container_name: postgres-billing-service
+    environment:
+      POSTGRES_DB: billing_db
+      POSTGRES_USER: billing_user
+      POSTGRES_PASSWORD: secret
+    ports:
+      - "5439:5432"
+    volumes:
+      - pgdata-billing-service:/var/lib/postgresql/data
+    networks:
+      - telcocrm-net
+
+  postgres-payment-service:
+    image: postgres:16-alpine
+    container_name: postgres-payment-service
+    environment:
+      POSTGRES_DB: payment_db
+      POSTGRES_USER: payment_user
+      POSTGRES_PASSWORD: secret
+    ports:
+      - "5440:5432"
+    volumes:
+      - pgdata-payment-service:/var/lib/postgresql/data
+    networks:
+      - telcocrm-net
+
+  postgres-notification-service:
+    image: postgres:16-alpine
+    container_name: postgres-notification-service
+    environment:
+      POSTGRES_DB: notification_db
+      POSTGRES_USER: notification_user
+      POSTGRES_PASSWORD: secret
+    ports:
+      - "5441:5432"
+    volumes:
+      - pgdata-notification-service:/var/lib/postgresql/data
+    networks:
+      - telcocrm-net
+
+  postgres-ticket-service:
+    image: postgres:16-alpine
+    container_name: postgres-ticket-service
+    environment:
+      POSTGRES_DB: ticket_db
+      POSTGRES_USER: ticket_user
+      POSTGRES_PASSWORD: secret
+    ports:
+      - "5442:5432"
+    volumes:
+      - pgdata-ticket-service:/var/lib/postgresql/data
+    networks:
+      - telcocrm-net
+
+networks:
+  telcocrm-net:
+    driver: bridge
+
+volumes:
+  pgdata-identity-service:
+  pgdata-customer-service:
+  pgdata-product-catalog-service:
+  pgdata-order-service:
+  pgdata-subscription-service:
+  pgdata-usage-service:
+  pgdata-billing-service:
+  pgdata-payment-service:
+  pgdata-notification-service:
+  pgdata-ticket-service:
