@@ -21,6 +21,7 @@
   <modules>
     <module>common-lib</module>
     <module>eureka-server</module>
+    <module>gateway-server</module>
     <module>identity-service</module>
     <module>customer-service</module>
     <module>product-catalog-service</module>

@@ -6,7 +6,8 @@ Spring Boot 3.x multi-module Maven mikroservis projesi.
 
 | Servis | Port | Veritabani |
 |--------|------|------------|
-| api-gateway | 8080 | — |
+| eureka-server | 8761 | — |
+| gateway-server | 8888 | — |
 | identity-service | 8081 | identity_db |
 | customer-service | 8082 | customer_db |
 | product-catalog-service | 8083 | catalog_db |
