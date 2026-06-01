@@ -32,3 +32,13 @@ management:
     web:
       exposure:
         include: health,info,metrics
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:telcocrm-default-secret-key-must-be-at-least-32-chars}
+    access-token-ttl-ms: ${JWT_ACCESS_TTL_MS:900000}      # 15 dakika
+    refresh-token-ttl-ms: ${JWT_REFRESH_TTL_MS:604800000} # 7 gün
+ 
+logging:
+  pattern:
+    level: "%5p [${spring.application.name},%X{traceId},%X{spanId}]"
