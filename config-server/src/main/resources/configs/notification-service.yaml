@@ -1,0 +1,18 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5441/notification_db
+    username: ${DB_USER:notification_user}
+    password: ${DB_PASS:secret}
+    driver-class-name: org.postgresql.Driver
+  # --- order-events tuketicisi (inbox idempotent consumer) ---
+  cloud:
+    function:
+      definition: consumeOrderPlaced
+    stream:
+      bindings:
+        consumeOrderPlaced-in-0:
+          destination: order-events
+          group: notification-service-group
+      kafka:
+        binder:
+          brokers: ${KAFKA_BROKERS:localhost:9092}

@@ -1,0 +1,6 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5440/payment_db
+    username: ${DB_USER:payment_user}
+    password: ${DB_PASS:secret}
+    driver-class-name: org.postgresql.Driver

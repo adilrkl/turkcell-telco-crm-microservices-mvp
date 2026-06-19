@@ -1,0 +1,6 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5433/identity_db
+    username: ${DB_USER:identity_user}
+    password: ${DB_PASS:secret}
+    driver-class-name: org.postgresql.Driver

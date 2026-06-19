@@ -1,0 +1,6 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5442/ticket_db
+    username: ${DB_USER:ticket_user}
+    password: ${DB_PASS:secret}
+    driver-class-name: org.postgresql.Driver

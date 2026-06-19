@@ -1,0 +1,6 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5437/subscription_db
+    username: ${DB_USER:subscription_user}
+    password: ${DB_PASS:secret}
+    driver-class-name: org.postgresql.Driver

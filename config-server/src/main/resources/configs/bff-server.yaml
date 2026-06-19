@@ -1,0 +1,26 @@
+spring:
+  security:
+    oauth2:
+      client:
+        registration:
+          keycloak:
+            client-id: ${BFF_CLIENT_ID:telco-bff}
+            client-secret: ${BFF_CLIENT_SECRET:kVqT3nP9rL7wX2mB6dF4hJ8sZ1cY5gA}
+            authorization-grant-type: authorization_code
+            scope: openid, profile, email
+        provider:
+          keycloak:
+            issuer-uri: ${KEYCLOAK_ISSUER:http://localhost:8095/realms/telco-crm}
+  cloud:
+    gateway:
+      server:
+        webmvc:
+          routes:
+            - id: gateway-proxy
+              uri: lb://gateway-server
+              predicates:
+                - Path=/api/**
+              filters:
+                # Session'da tutulan access token'i Authorization: Bearer
+                # header'i olarak gateway'e iletir.
+                - TokenRelay

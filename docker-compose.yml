@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   postgres-identity-service:
     image: postgres:16-alpine
@@ -149,12 +147,98 @@ services:
       PGADMIN_DEFAULT_PASSWORD: admin
     ports:
       - "5151:80"
+    networks:
+      - telcocrm-net
+
+  # --- Event bus: Kafka (KRaft, tek node, zookeeper yok) ---
+  kafka:
+    image: apache/kafka:4.2.0
+    container_name: telcocrm-kafka
+    ports:
+      - "9092:9092"          # host -> broker (EXTERNAL listener); cluster ici: kafka:19092
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:19092,EXTERNAL://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:19092,EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_NUM_PARTITIONS: 3
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    networks:
+      - telcocrm-net
+
+  kafka-ui:
+    image: kafbat/kafka-ui:latest
+    container_name: telcocrm-kafka-ui
+    ports:
+      - "8080:8080"          # http://localhost:8080
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:19092
+      DYNAMIC_CONFIG_ENABLED: "true"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - telcocrm-net
+
+  # --- Cache: Redis ---
+  redis:
+    image: redis:7-alpine
+    container_name: telcocrm-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - telcocrm-net
+
+  # --- Identity Provider: Keycloak (dev mode, realm import) ---
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.1
+    container_name: telcocrm-keycloak
+    restart: unless-stopped
+    command: start-dev --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HOSTNAME_STRICT: "false"
+      KC_HTTP_ENABLED: "true"
+    ports:
+      - "8095:8080"          # admin console http://localhost:8095 (admin/admin)
+    volumes:
+      - ./docker/keycloak:/opt/keycloak/data/import
+    networks:
+      - telcocrm-net
 
 networks:
   telcocrm-net:
     driver: bridge
 
 volumes:
+  kafka-data:
+  redis-data:
   pgdata-identity-service:
   pgdata-customer-service:
   pgdata-product-catalog-service:

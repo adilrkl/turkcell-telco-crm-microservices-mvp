@@ -20,5 +20,21 @@
       <artifactId>lombok</artifactId>
       <optional>true</optional>
     </dependency>
+
+    <!-- Paylasilan resource-server guvenligi (KeycloakRealmRoleConverter + filter chain).
+         optional=true: tuketici servislere transitif gecmez, her servis kendi pom'unda
+         starter'i ekler; auto-config @ConditionalOnClass ile yalnizca o zaman aktiflesir. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+      <optional>true</optional>
+    </dependency>
+
+    <!-- RestPage<T> icin Page/PageImpl/PageRequest (spring-data). -->
+    <dependency>
+      <groupId>org.springframework.data</groupId>
+      <artifactId>spring-data-commons</artifactId>
+      <optional>true</optional>
+    </dependency>
   </dependencies>
 </project>

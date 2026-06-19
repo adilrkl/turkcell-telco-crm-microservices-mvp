@@ -1,0 +1,2 @@
+com.turkcell.commonlib.web.CommonWebAutoConfiguration
+com.turkcell.commonlib.security.ResourceServerSecurityAutoConfiguration

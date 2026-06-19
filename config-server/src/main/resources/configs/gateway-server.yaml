@@ -1,0 +1,52 @@
+spring:
+  cloud:
+    gateway:
+      server:
+        webmvc:
+          routes:
+            - id: identity-service
+              uri: lb://identity-service
+              predicates:
+                - Path=/api/auth/**,/api/identity/**
+            - id: customer-service
+              uri: lb://customer-service
+              predicates:
+                - Path=/api/customers/**
+            - id: product-catalog-service
+              uri: lb://product-catalog-service
+              predicates:
+                - Path=/api/catalog/**,/api/products/**
+            - id: order-service
+              uri: lb://order-service
+              predicates:
+                - Path=/api/orders/**
+            - id: subscription-service
+              uri: lb://subscription-service
+              predicates:
+                - Path=/api/subscriptions/**
+            - id: usage-service
+              uri: lb://usage-service
+              predicates:
+                - Path=/api/usage/**
+            - id: billing-service
+              uri: lb://billing-service
+              predicates:
+                - Path=/api/billing/**,/api/invoices/**
+            - id: payment-service
+              uri: lb://payment-service
+              predicates:
+                - Path=/api/payments/**
+            - id: notification-service
+              uri: lb://notification-service
+              predicates:
+                - Path=/api/notifications/**
+            - id: ticket-service
+              uri: lb://ticket-service
+              predicates:
+                - Path=/api/tickets/**
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway

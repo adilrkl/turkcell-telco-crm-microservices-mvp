@@ -1,3 +1,12 @@
-config-server ve 
-readme.md düzenlenecek
-db yi kontrol edelim er diagram ile uyumu nasıl?
+DONE:
+- config-server eklendi (native backend, port 8889) + tüm servisler config-client
+- README.md güncellendi (entegre yapılar + demo)
+- Keycloak (tek IdP), Redis cache, Kafka Outbox/Inbox, OpenFeign, BFF entegre edildi
+- Flyway spring-boot-starter-flyway + flyway-database-postgresql ile düzeltildi (migration'lar çalışıyor)
+
+NEXT:
+- subscription/payment servislerini event akışına dahil et
+- saga orchestration (order-service saga_states hazır)
+- Feign + Resilience4j (circuit breaker / fallback)
+- OutboxPoller çoklu-instance (SKIP LOCKED)
+- er/ diyagramları ile şema uyumunu gözden geçir

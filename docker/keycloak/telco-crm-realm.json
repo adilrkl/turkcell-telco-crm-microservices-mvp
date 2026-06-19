@@ -1,0 +1,71 @@
+{
+  "realm": "telco-crm",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "accessTokenLifespan": 1800,
+  "roles": {
+    "realm": [
+      { "name": "CUSTOMER", "description": "Son kullanici / abone" },
+      { "name": "CSR", "description": "Cagri merkezi musteri temsilcisi" },
+      { "name": "CATALOG_ADMIN", "description": "Tarife/katalog yonetimi" },
+      { "name": "BILLING_ADMIN", "description": "Faturalama yonetimi" },
+      { "name": "ADMIN", "description": "Sistem yoneticisi" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "telco-bff",
+      "name": "Telco BFF Client",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "kVqT3nP9rL7wX2mB6dF4hJ8sZ1cY5gA",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost:9000/*",
+        "http://localhost:4200/*"
+      ],
+      "webOrigins": [
+        "http://localhost:9000",
+        "http://localhost:4200"
+      ],
+      "defaultClientScopes": [
+        "openid",
+        "profile",
+        "email",
+        "roles",
+        "web-origins"
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "testuser",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "testuser@example.com",
+      "firstName": "Test",
+      "lastName": "User",
+      "credentials": [
+        { "type": "password", "value": "test12345", "temporary": false }
+      ],
+      "realmRoles": [ "CUSTOMER" ]
+    },
+    {
+      "username": "csruser",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "csruser@example.com",
+      "firstName": "CSR",
+      "lastName": "Agent",
+      "credentials": [
+        { "type": "password", "value": "test12345", "temporary": false }
+      ],
+      "realmRoles": [ "CSR", "CATALOG_ADMIN", "BILLING_ADMIN", "ADMIN" ]
+    }
+  ]
+}
