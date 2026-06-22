@@ -12,11 +12,59 @@ eureka:
   instance:
     prefer-ip-address: true
 
+# ----------------------------------------------------------------------
+# Observability (tum config-client servislere ortak)
+#   metrics -> /actuator/prometheus  (Prometheus scrape eder)
+#   traces  -> OTLP/HTTP -> OpenTelemetry Collector (4318) -> Tempo
+#   logs    -> loki4j (logback-spring.xml, common-lib) -> Loki
+# Tek pencere: Grafana (http://localhost:3000)
+# ----------------------------------------------------------------------
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,prometheus,loggers,env
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when_authorized
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  metrics:
+    distribution:
+      percentiles-histogram:
+        "[http.server.requests]": true   # p95/p99 latency histogrami (docx p95<300ms hedefi)
+    tags:
+      application: ${spring.application.name}
+  tracing:
+    sampling:
+      probability: ${TRACE_SAMPLING:1.0}   # dev: tum istekleri izle; prod'da dusur
+    export:
+      enabled: true
+  # SB4 OTLP trace export'u 'management.opentelemetry.tracing.export.otlp' altinda.
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: ${OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}
+  # Metrikleri Prometheus SCRAPE ediyor; OTLP metrik PUSH'u kapali
+  # (starter micrometer-registry-otlp getirir; collector'da metrik pipeline yok).
+  otlp:
+    metrics:
+      export:
+        enabled: false
+
+# Loki appender'in push URL'i (logback-spring.xml bunu okur).
+loki:
+  url: ${LOKI_URL:http://localhost:3100/loki/api/v1/push}
+
+# Konsol/log korelasyon deseni: [app, traceId, spanId]
+logging:
+  pattern:
+    correlation: "[${spring.application.name:-},%X{traceId:-},%X{spanId:-}] "
 
 spring:
   jpa:
@@ -34,3 +82,10 @@ spring:
       resourceserver:
         jwt:
           issuer-uri: ${KEYCLOAK_ISSUER:http://localhost:8095/realms/telco-crm}
+  # spring-kafka observation: order-events Kafka hop'unu da ayni trace'e baglar
+  # (yalnizca kafka starter'i olan servislerde etkili).
+  kafka:
+    template:
+      observation-enabled: true
+    listener:
+      observation-enabled: true
