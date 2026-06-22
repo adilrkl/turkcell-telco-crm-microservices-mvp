@@ -39,6 +39,8 @@
   <properties>
     <java.version>21</java.version>
     <spring-cloud.version>2025.1.1</spring-cloud.version>
+    <!-- BOM disinda kalan tek observability bagimliligi: Loki logback appender. -->
+    <loki-logback.version>1.6.0</loki-logback.version>
   </properties>
 
   <dependencyManagement>
@@ -81,6 +83,32 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-webmvc-test</artifactId>
       <scope>test</scope>
+    </dependency>
+
+    <!-- ============================================================= -->
+    <!-- Observability (3 ayak) - TUM modullere ortak.                 -->
+    <!-- Metrics: actuator (yukarida) + Prometheus registry (scrape)   -->
+    <!-- Traces:  spring-boot-starter-opentelemetry                     -->
+    <!--          (SB4'te tracing autoconfig AYRI modul: bu starter     -->
+    <!--           micrometer-tracing-opentelemetry + opentelemetry     -->
+    <!--           autoconfig + OTLP exporter'i birlikte getirir.       -->
+    <!--           Tek basina micrometer-tracing-bridge-otel YETMEZ.)   -->
+    <!-- Logs:    loki4j logback appender (logback-spring.xml ile)      -->
+    <!-- Surumler spring-boot-dependencies BOM'undan gelir (loki4j haric).-->
+    <!-- ============================================================= -->
+    <dependency>
+      <groupId>io.micrometer</groupId>
+      <artifactId>micrometer-registry-prometheus</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-opentelemetry</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.github.loki4j</groupId>
+      <artifactId>loki-logback-appender</artifactId>
+      <version>${loki-logback.version}</version>
     </dependency>
   </dependencies>
 

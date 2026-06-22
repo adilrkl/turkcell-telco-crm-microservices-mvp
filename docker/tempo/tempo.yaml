@@ -1,0 +1,31 @@
+# Grafana Tempo - tek-binary (monolithic) mod, yerel disk storage.
+# Collector'dan OTLP gRPC (4317) ile span alir, 3200'de query sunar.
+stream_over_http_enabled: true
+
+server:
+  http_listen_port: 3200
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+
+ingester:
+  max_block_duration: 5m
+
+compactor:
+  compaction:
+    block_retention: 24h        # MVP: 1 gun trace saklama
+
+storage:
+  trace:
+    backend: local
+    wal:
+      path: /var/tempo/wal
+    local:
+      path: /var/tempo/blocks
+
+# Servis grafigi / span metrikleri uretmek istersen metrics_generator acilabilir;
+# MVP'de kapali tutuyoruz (ekstra Prometheus remote-write gerektirir).

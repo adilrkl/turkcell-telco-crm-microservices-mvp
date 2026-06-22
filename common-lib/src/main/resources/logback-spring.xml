@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Paylasilan logback konfigurasyonu. common-lib'e bagli TUM servisler bunu
+  classpath kokunden alir (servisin kendi logback-spring.xml'i yoksa).
+
+  - CONSOLE: insan-okur desen + [app,traceId,spanId] korelasyonu (Spring Boot default).
+  - LOKI   : loki4j ile structured JSON push (yalnizca 'dev' profilinde aktif).
+             Loki ayakta degilse uygulama PATLAMAZ; loki4j batch'leri sessizce dusurur.
+  Loki URL'i config-server'daki `loki.url` anahtarindan gelir.
+-->
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+
+    <springProperty scope="context" name="appName" source="spring.application.name" defaultValue="unknown"/>
+    <springProperty scope="context" name="lokiUrl" source="loki.url" defaultValue="http://localhost:3100/loki/api/v1/push"/>
+
+    <!-- Loki push appender yalnizca dev profilinde devreye girer. -->
+    <springProfile name="dev">
+        <appender name="LOKI" class="com.github.loki4j.logback.Loki4jAppender">
+            <http>
+                <url>${lokiUrl}</url>
+            </http>
+            <batchMaxItems>1000</batchMaxItems>
+            <batchTimeoutMs>5000</batchTimeoutMs>
+            <!-- Loki erisilemezse: hata bas, ama uygulamayi blokeleme/dusurme. -->
+            <verbose>false</verbose>
+            <format>
+                <!-- Loki ETIKETLERI (indexlenir, dusuk-kardinalite tut): app + level. -->
+                <label>
+                    <pattern>app=${appName},level=%level</pattern>
+                </label>
+                <!-- Log SATIRI (indexlenmez): traceId/spanId token olarak; Grafana
+                     "derived field" regex'i bu token'dan trace'e link kurar. -->
+                <message>
+                    <pattern>%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level [traceId=%mdc{traceId:-},spanId=%mdc{spanId:-}] %logger{40} - %msg%n%ex</pattern>
+                </message>
+            </format>
+        </appender>
+
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="LOKI"/>
+        </root>
+    </springProfile>
+
+    <!-- dev disindaki profillerde (test/prod-yok) sadece konsol. -->
+    <springProfile name="!dev">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </springProfile>
+</configuration>
