@@ -18,7 +18,8 @@ import org.springframework.security.web.SecurityFilterChain;
  * Tum telco resource-server'lar icin ortak guvenlik konfigurasyonu.
  * - Yalnizca oauth2-resource-server starter'i classpath'te ise aktiflesir
  *   ({@code @ConditionalOnClass(BearerTokenAuthenticationToken.class)}).
- * - {@code /actuator/**} acik, geri kalan her istek JWT ile dogrulanmis olmali.
+ * - {@code /actuator/**} ve dokumantasyon asset/spec yollari acik,
+ *   geri kalan her istek JWT ile dogrulanmis olmali.
  * - Rol bazli yetki icin {@code @PreAuthorize} (@EnableMethodSecurity) +
  *   {@link KeycloakRealmRoleConverter}.
  * - STATELESS, CSRF kapali (token bazli, cookie/session yok).
@@ -37,7 +38,13 @@ public class ResourceServerSecurityAutoConfiguration {
     public SecurityFilterChain telcoResourceServerFilterChain(HttpSecurity http) throws Exception {
         http
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/actuator/**", "/error").permitAll()
+                        .requestMatchers(
+                                "/actuator/**",
+                                "/error",
+                                "/v3/api-docs/**",
+                                "/swagger-ui/**",
+                                "/swagger-ui.html")
+                        .permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())))

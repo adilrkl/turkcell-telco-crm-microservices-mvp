@@ -36,5 +36,13 @@
       <artifactId>spring-data-commons</artifactId>
       <optional>true</optional>
     </dependency>
+
+    <!-- OpenAPI ortak metadata/security config'i icin. optional=true:
+         yalnizca Springdoc eklenen servislerde auto-config aktiflesir. -->
+    <dependency>
+      <groupId>org.springdoc</groupId>
+      <artifactId>springdoc-openapi-starter-common</artifactId>
+      <optional>true</optional>
+    </dependency>
   </dependencies>
 </project>

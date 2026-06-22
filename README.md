@@ -22,6 +22,7 @@ entegre edilmiştir.
 - **Redis 7** — Spring Cache (okuma yoğun servislerde)
 - **Apache Kafka 4.2 (KRaft)** — Spring Cloud Stream ile event akışı
 - **Keycloak 26.1** — OAuth2/OIDC kimlik sağlayıcı (tek IdP)
+- **Springdoc OpenAPI 3.0.3** — servis bazlı OpenAPI spec + Swagger UI
 - **Docker Compose** — yerel altyapı
 - **Maven** — multi-module build
 
@@ -92,6 +93,13 @@ spring:
 - `oauth2Login` (Authorization Code) — token sunucu session'ında, tarayıcıya sadece cookie.
 - `TokenRelay` filtresi ile `lb://gateway-server`'a Bearer enjekte eder; SPA-dostu CSRF + OIDC logout.
 
+### 7. Springdoc OpenAPI + Swagger UI
+- REST controller olan servislerde `/v3/api-docs` ve `/swagger-ui.html` aciktir.
+- Ortak OpenAPI metadata/security config'i `common-lib` tarafindan verilir; Swagger UI'daki `Authorize`
+  butonu Bearer JWT kabul eder.
+- Varsayilan olarak lokal/dev kullanım icin aciktir. Prod/internal olmayan ortamlarda
+  `application-prod.yaml` varsayilan olarak kapatir; internal ihtiyacta env ile tekrar acilabilir.
+
 ## Başlangıç
 
 ### 1. Altyapıyı ayağa kaldır
@@ -151,6 +159,10 @@ Bu tek çağrı şunları tetikler:
 - Kafka: kafka-ui <http://localhost:8080> → `order-events`
 - 403: `testuser` ile `POST /api/catalog/tariffs` → 403 (sadece `CATALOG_ADMIN`)
 - BFF login: tarayıcıda <http://localhost:9000/oauth2/authorization/keycloak>
+- OpenAPI:
+  - customer-service: <http://localhost:8082/swagger-ui.html>
+  - product-catalog-service: <http://localhost:8083/swagger-ui.html>
+  - order-service: <http://localhost:8084/swagger-ui.html>
 
 ## Mimari
 
@@ -162,6 +174,7 @@ Bu tek çağrı şunları tetikler:
 - **Event-Driven** — Transactional Outbox/Inbox + Kafka (Spring Cloud Stream)
 - **Senkron çağrı** — OpenFeign (+ Eureka load-balancing)
 - **Cache** — Redis (okuma yoğun servisler)
+- **API Contract** — Springdoc OpenAPI + Swagger UI
 
 ## Proje Yapısı
 
