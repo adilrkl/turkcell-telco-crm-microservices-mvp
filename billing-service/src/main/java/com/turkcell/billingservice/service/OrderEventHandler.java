@@ -12,11 +12,12 @@ import com.turkcell.billingservice.entity.BillCycle;
 import com.turkcell.billingservice.entity.ProcessedEvent;
 import com.turkcell.billingservice.repository.BillCycleRepository;
 import com.turkcell.billingservice.repository.ProcessedEventRepository;
-import com.turkcell.commonlib.event.OrderPlacedEvent;
+import com.turkcell.commonlib.saga.OrderConfirmed;
 
 /**
- * OrderPlaced isleyicisi. Inbox kontrolu + is yazimi AYNI transaction'da
- * (ayri bean oldugu icin @Transactional proxy uzerinden calisir).
+ * OrderConfirmed isleyicisi. Inbox kontrolu + is yazimi AYNI transaction'da.
+ * NOT: Onboarding'de fatura KESILMEZ (postpaid) - sadece aylik fatura dongusu acilir;
+ * gercek fatura aylik bill-run'da uretilir.
  */
 @Service
 public class OrderEventHandler {
@@ -33,14 +34,14 @@ public class OrderEventHandler {
     }
 
     @Transactional
-    public void handle(OrderPlacedEvent event) {
+    public void handle(OrderConfirmed event) {
         // Inbox idempotency: bu event daha once islendiyse atla.
         if (processedEventRepository.existsById(event.eventId())) {
             log.info("billing: event zaten islendi, atlaniyor. eventId={}", event.eventId());
             return;
         }
 
-        // Is: yeni musteri siparisi icin fatura dongusu ac.
+        // Is: yeni abone icin aylik fatura dongusu ac.
         BillCycle cycle = new BillCycle();
         cycle.setCustomerId(event.customerId());
         cycle.setDayOfMonth((short) 1);
@@ -52,7 +53,7 @@ public class OrderEventHandler {
         processed.setProcessedAt(Instant.now());
         processedEventRepository.save(processed);
 
-        log.info("billing: OrderPlaced islendi -> bill_cycle acildi. order={} customer={} tutar={} {}",
+        log.info("billing: OrderConfirmed islendi -> bill_cycle acildi. order={} customer={} tutar={} {}",
                 event.orderId(), event.customerId(), event.amount(), event.currency());
     }
 }

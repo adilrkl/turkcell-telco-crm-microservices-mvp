@@ -10,3 +10,5 @@ NEXT:
 - Feign + Resilience4j (circuit breaker / fallback)
 - OutboxPoller çoklu-instance (SKIP LOCKED)
 - er/ diyagramları ile şema uyumunu gözden geçir
+
+redis,kafka,bff,keycloak,config-server,euraka,gateway,resource-server mantığı?

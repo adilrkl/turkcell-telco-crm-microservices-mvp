@@ -85,11 +85,11 @@ spring:
 - `RedisCacheManager` + Jackson tip bilgili serializer; sayfalı sonuçlar için `common-lib`'teki `RestPage<T>`.
 
 ### 4. Kafka — Transactional Outbox / Inbox (Spring Cloud Stream)
-- **Producer (order-service):** sipariş + `outbox_events` satırı AYNI transaction'da yazılır.
-  `OutboxPoller` (`@Scheduled`) PENDING satırları `StreamBridge` ile `order-events` topic'ine publish edip SENT işaretler.
-- **Consumer (billing + notification):** `@Bean Consumer<OrderPlacedEvent>` (functional binder).
-  `processed_events` (inbox) tablosu ile idempotency — aynı `eventId` tekrar gelirse atlanır.
-- Event kontratı `common-lib`'te (`OrderPlacedEvent`) — tek kaynak.
+- **Producer (order + subscription + payment):** iş değişikliği + `outbox_events` satırı AYNI transaction'da yazılır.
+  `OutboxPoller` (`@Scheduled`) PENDING satırları `StreamBridge` ile satırdaki `destination` topic'ine publish edip SENT işaretler.
+- **Consumer:** `@Bean Consumer<Message<byte[]>>`; payload ham JSON, `eventType` header'ına göre dispatch.
+  `processed_events` (inbox) ile idempotency — aynı `eventId` tekrar gelirse atlanır.
+- Event kontratları `common-lib`'te (`com.turkcell.commonlib.saga`) — tek kaynak. Bu outbox/inbox temeli üzerine **Saga** kuruldu (bkz. §9).
 
 ### 5. OpenFeign (senkron servisler-arası çağrı)
 - `order-service → customer-service` (müşteri doğrulama) ve `order-service → product-catalog-service` (fiyat).
@@ -112,6 +112,14 @@ spring:
 - **Logs:** loki4j logback appender logları Loki'ye yollar; loglarda `traceId`/`spanId` korelasyonu bulunur.
 - **Grafana:** Prometheus, Tempo ve Loki datasource'ları provision edilir; metrikten trace'e, trace'ten loga geçiş yapılabilir.
 - Detaylı mimari, doğrulama komutları ve sorun giderme için: [OBSERVABILITY.md](OBSERVABILITY.md)
+
+### 9. Saga Orchestration (order = orchestrator)
+- "Yeni hat siparişi" çoklu-servis işidir: **reserve MSISDN → ödeme → aktivasyon**, her adımın bir compensation'ı var.
+- `order-service` orchestrator'dır (`saga_states`); `subscription-service` ve `payment-service` participant'tır.
+  Komut/reply Kafka ile akar (`subscription-commands`, `payment-commands`, `saga-replies`); her serviste transactional outbox + inbox + `audit_log`.
+- Hata ya da timeout'ta otomatik compensation (`RefundPayment` + `ReleaseMsisdn`) → order `CANCELLED`.
+  `billing` & `notification` saga DIŞIdır; yalnızca terminal `OrderConfirmed`/`OrderCancelled`'a reaksiyon verir.
+- Detaylı akış, topic topolojisi, test adımları ve compensation knob'ları için: [SAGA.md](SAGA.md)
 
 ## Başlangıç
 
@@ -159,18 +167,19 @@ curl -X POST http://localhost:8888/api/orders \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d '{"customerId":"11111111-1111-1111-1111-111111111111","tariffCode":"TARIFE_M"}'
 ```
-Bu tek çağrı şunları tetikler:
+Bu tek çağrı **saga'yı** başlatır:
 1. **Resource-server**: token doğrulanır, rol kontrol edilir.
 2. **OpenFeign**: `customer-service` (doğrula) + `product-catalog-service` (fiyat = Redis cache'li).
-3. **Outbox**: sipariş + `OutboxEvent(PENDING)` atomik yazılır.
-4. **Kafka**: `OutboxPoller` → `order-events` topic (kafka-ui: <http://localhost:8080>).
-5. **Inbox**: `billing` (fatura döngüsü) + `notification` (ORDER_CONFIRMED) tüketir, `processed_events` ile idempotent.
+3. **Saga başlar**: sipariş `PENDING_PAYMENT` + `saga_states(STARTED)`; ilk komut (`ReserveMsisdn`) outbox'a yazılır.
+4. **Adımlar (Kafka)**: ReserveMsisdn → MSISDN rezerve → ChargePayment → ödeme → ActivateSubscription → abonelik `ACTIVE`.
+5. **Tamamlanma**: order `FULFILLED`, `OrderConfirmed` → billing (bill_cycle) + notification (welcome). Son durum: `GET /api/orders/{id}`.
 
 ### Doğrulama
 - Eureka: <http://localhost:8761>
 - Config: `curl http://localhost:8889/order-service/dev`
 - Redis cache: `docker exec telcocrm-redis redis-cli KEYS '*'`
-- Kafka: kafka-ui <http://localhost:8080> → `order-events`
+- Kafka: kafka-ui <http://localhost:8080> → `subscription-commands` / `payment-commands` / `saga-replies` / `order-events`
+- Saga: `GET http://localhost:8084/api/orders/<id>` → birkaç sn içinde `FULFILLED`. Compensation için `_FAIL` ile biten tarife siparişi → `CANCELLED` (refund + MSISDN release). Detay: [SAGA.md](SAGA.md)
 - Grafana: <http://localhost:3000> → Telco CRM dashboard / Explore
 - Prometheus targets: <http://localhost:9090/targets> → `spring-services` hedefleri UP olmalı
 - 403: `testuser` ile `POST /api/catalog/tariffs` → 403 (sadece `CATALOG_ADMIN`)
@@ -188,6 +197,7 @@ Bu tek çağrı şunları tetikler:
 - **Service Discovery** — Netflix Eureka
 - **Güvenlik** — Keycloak (OAuth2/OIDC), tüm servisler JWT resource-server
 - **Event-Driven** — Transactional Outbox/Inbox + Kafka (Spring Cloud Stream)
+- **Saga Orchestration** — order-service orchestrator + `saga_states`; reserve→ödeme→aktivasyon, compensation'lı ([SAGA.md](SAGA.md))
 - **Senkron çağrı** — OpenFeign (+ Eureka load-balancing)
 - **Cache** — Redis (okuma yoğun servisler)
 - **API Contract** — Springdoc OpenAPI + Swagger UI
@@ -200,13 +210,15 @@ telco-crm-platform/
 ├── pom.xml                       # parent pom
 ├── docker-compose.yml            # postgres'ler + pgadmin + kafka + redis + keycloak + observability stack
 ├── OBSERVABILITY.md              # metrics/traces/logs mimarisi ve doğrulama adımları
+├── SAGA.md                       # saga orchestration: akış, topic topolojisi, test, compensation
+├── OPENAPI.md                    # springdoc/swagger ui katmanı
 ├── docker/keycloak/telco-crm-realm.json
 ├── docker/grafana/               # datasource/dashboard provisioning
 ├── docker/prometheus/            # scrape config
 ├── docker/otel/                  # OpenTelemetry Collector config
 ├── docker/tempo/                 # distributed tracing backend config
 ├── docker/loki/                  # log backend config
-├── common-lib/                   # ApiResponse, exception advice, JWT converter, RestPage, OrderPlacedEvent, autoconfig
+├── common-lib/                   # ApiResponse, exception advice, JWT converter, RestPage, saga event kontratları, autoconfig
 ├── config-server/                # Spring Cloud Config (native) + configs/ ağacı
 ├── eureka-server/                # service registry
 ├── gateway-server/               # API gateway
@@ -214,19 +226,22 @@ telco-crm-platform/
 ├── identity-service/             # profil (auth Keycloak'ta)
 ├── customer-service/             # müşteri (Redis)
 ├── product-catalog-service/      # tarife kataloğu (Redis)
-├── order-service/                # sipariş (Outbox + Feign)
-├── subscription-service/         # abonelik
+├── order-service/                # sipariş + Saga orchestrator (Outbox + Feign + saga_states)
+├── subscription-service/         # abonelik (saga participant: MSISDN/SIM reserve/activate/release)
 ├── usage-service/                # kullanım
-├── billing-service/              # faturalama (inbox consumer)
-├── payment-service/              # ödeme
-├── notification-service/         # bildirim (inbox consumer)
+├── billing-service/              # faturalama (OrderConfirmed → bill_cycle)
+├── payment-service/              # ödeme (saga participant: mock PSP charge/refund)
+├── notification-service/         # bildirim (OrderConfirmed/OrderCancelled consumer)
 └── ticket-service/               # destek/talep
 ```
 
 ## Sonraki Adımlar
 
+- ✅ **Saga orchestration uygulandı** — order orchestrator (`saga_states`) + reserve→ödeme→aktivasyon + compensation + timeout. Bkz. [SAGA.md](SAGA.md).
+- ✅ **subscription / payment servisleri** saga akışına dahil edildi (iskeletten dolduruldu).
 - rate limit yapısı entegre edilecek.
-- subscription / payment servislerini event akışına dahil et (OrderPlaced → provision, InvoiceIssued → payment).
-- Saga orchestration (`order-service` `saga_states` tablosu hazır).
 - Feign çağrılarına Resilience4j circuit breaker + fallback.
 - OutboxPoller için çoklu-instance güvenliği (`SELECT ... FOR UPDATE SKIP LOCKED`).
+- Saga: compensation ack'lerini bekleyen iki-fazlı iptal + Kafka DLQ/retry; aylık bill-run + `InvoiceGenerated → Payment` (recurring auto-pay).
+
+- minio

@@ -4,13 +4,17 @@ spring:
     username: ${DB_USER:order_user}
     password: ${DB_PASS:secret}
     driver-class-name: org.postgresql.Driver
-  # --- Outbox -> Kafka producer (Spring Cloud Stream) ---
+  # --- Saga orchestrator: reply consumer (saga-replies) ---
+  # Komutlar/domain event'leri outbox -> StreamBridge ile subscription-commands /
+  # payment-commands / order-events topic'lerine DINAMIK gonderilir (output binding gerekmez).
   cloud:
+    function:
+      definition: sagaReplies
     stream:
       bindings:
-        orderPlaced-out-0:
-          destination: order-events
-          content-type: application/json
+        sagaReplies-in-0:
+          destination: saga-replies
+          group: order-service-group
       kafka:
         binder:
           brokers: ${KAFKA_BROKERS:localhost:9092}

@@ -4,3 +4,15 @@ spring:
     username: ${DB_USER:subscription_user}
     password: ${DB_PASS:secret}
     driver-class-name: org.postgresql.Driver
+  # --- Saga participant: subscription-commands tuketicisi; reply'lar saga-replies'a (StreamBridge dinamik) ---
+  cloud:
+    function:
+      definition: subscriptionCommands
+    stream:
+      bindings:
+        subscriptionCommands-in-0:
+          destination: subscription-commands
+          group: subscription-service-group
+      kafka:
+        binder:
+          brokers: ${KAFKA_BROKERS:localhost:9092}
