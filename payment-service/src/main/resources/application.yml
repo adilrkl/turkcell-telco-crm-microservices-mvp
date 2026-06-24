@@ -7,4 +7,4 @@ spring:
     import: "optional:configserver:http://localhost:8889"
 
 server:
-  port: 8088
+  port: ${SERVER_PORT:8088}

@@ -11,6 +11,13 @@ eureka:
       defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
   instance:
     prefer-ip-address: true
+    # Her instance Eureka'ya benzersiz kimlikle kaydolur; ayni servisten
+    # birden fazla kopya (yatay olcekleme) calistirildiginda kayit cakismaz.
+    # server.port artik ${SERVER_PORT:<default>} ile ezilebilir: ayni host'ta
+    # ikinci kopya icin SERVER_PORT=0 ver -> OS bos port secer, Eureka duyurur,
+    # gateway/Feign servisi yine ISIMLE bulur (lb://). Container basina 1 kopyada
+    # default port aynen kalir, cakisma olmaz (her container kendi network ns'i).
+    instance-id: ${spring.application.name}:${random.uuid}
 
 # ----------------------------------------------------------------------
 # Observability (tum config-client servislere ortak)
