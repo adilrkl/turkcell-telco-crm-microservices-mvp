@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.MimeTypeUtils;
 
+import com.turkcell.commonlib.saga.SagaHeaders;
 import com.turkcell.orderservice.entity.OutboxEvent;
 import com.turkcell.orderservice.entity.OutboxStatus;
 import com.turkcell.orderservice.repository.OutboxRepository;
@@ -43,16 +44,19 @@ public class OutboxPoller {
         List<OutboxEvent> events = outboxRepository.findPublishable(100);
         for (OutboxEvent event : events) {
             try {
-                boolean sent = streamBridge.send("orderPlaced-out-0",
+                // Dinamik destination: outbox satirindaki topic'e gonder, eventType header'ini ekle
+                // (consumer tarafi bu header'a gore dogru tipe deserialize/dispatch eder).
+                boolean sent = streamBridge.send(event.getDestination(),
                         MessageBuilder.withPayload(event.getPayload().getBytes(StandardCharsets.UTF_8))
                                 .setHeader(MessageHeaders.CONTENT_TYPE, MimeTypeUtils.APPLICATION_JSON_VALUE)
+                                .setHeader(SagaHeaders.EVENT_TYPE, event.getEventType())
                                 .build());
                 if (!sent) {
                     throw new IllegalStateException("StreamBridge.send false dondu");
                 }
                 event.setStatus(OutboxStatus.SENT);
                 event.setPublishedAt(Instant.now());
-                log.info("Outbox event SENT -> order-events: type={} id={}", event.getEventType(), event.getId());
+                log.info("Outbox event SENT -> {}: type={} id={}", event.getDestination(), event.getEventType(), event.getId());
             } catch (Exception e) {
                 if (event.getRetryCount() + 1 >= MAX_RETRY) {
                     event.setStatus(OutboxStatus.FAILED);

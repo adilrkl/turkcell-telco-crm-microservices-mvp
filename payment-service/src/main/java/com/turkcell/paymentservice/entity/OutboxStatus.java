@@ -1,0 +1,5 @@
+package com.turkcell.paymentservice.entity;
+
+public enum OutboxStatus {
+    PENDING, SENT, FAILED
+}

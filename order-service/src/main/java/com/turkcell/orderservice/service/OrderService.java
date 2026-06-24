@@ -7,7 +7,6 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.turkcell.commonlib.event.OrderPlacedEvent;
 import com.turkcell.orderservice.client.CustomerClient;
 import com.turkcell.orderservice.client.ProductCatalogClient;
 import com.turkcell.orderservice.client.dto.CustomerEnvelope;
@@ -18,42 +17,39 @@ import com.turkcell.orderservice.dto.CreateOrderRequest;
 import com.turkcell.orderservice.dto.OrderResponse;
 import com.turkcell.orderservice.entity.Order;
 import com.turkcell.orderservice.entity.OrderItem;
-import com.turkcell.orderservice.entity.OutboxEvent;
-import com.turkcell.orderservice.entity.OutboxStatus;
 import com.turkcell.orderservice.exception.InvalidOrderException;
 import com.turkcell.orderservice.repository.OrderRepository;
-import com.turkcell.orderservice.repository.OutboxRepository;
+import com.turkcell.orderservice.saga.OrderSagaOrchestrator;
+import com.turkcell.orderservice.saga.OrderStatus;
 
 import feign.FeignException;
-import tools.jackson.databind.ObjectMapper;
 
+/**
+ * Siparis alma akisi:
+ *  1) Senkron dogrulama (OpenFeign): musteri aktif mi + tarife/fiyat.
+ *  2) Order'i PENDING_PAYMENT olarak yaz ve saga'yi baslat (ReserveMsisdn ilk komut).
+ * Kafka'ya dogrudan yazilmaz; orchestrator + OutboxPoller asenkron ilerletir.
+ */
 @Service
 public class OrderService {
 
     private static final String CURRENCY = "TRY";
 
     private final OrderRepository orderRepository;
-    private final OutboxRepository outboxRepository;
     private final CustomerClient customerClient;
     private final ProductCatalogClient catalogClient;
-    private final ObjectMapper objectMapper;
+    private final OrderSagaOrchestrator orchestrator;
 
     public OrderService(OrderRepository orderRepository,
-                        OutboxRepository outboxRepository,
                         CustomerClient customerClient,
                         ProductCatalogClient catalogClient,
-                        ObjectMapper objectMapper) {
+                        OrderSagaOrchestrator orchestrator) {
         this.orderRepository = orderRepository;
-        this.outboxRepository = outboxRepository;
         this.customerClient = customerClient;
         this.catalogClient = catalogClient;
-        this.objectMapper = objectMapper;
+        this.orchestrator = orchestrator;
     }
 
-    /**
-     * Senkron dogrulama (Feign) + atomik (order + outbox) yazim.
-     * Kafka'ya DOGRUDAN yazilmaz; OutboxPoller asenkron publish eder.
-     */
     @Transactional
     public OrderResponse placeOrder(CreateOrderRequest request) {
         // 1) Musteri dogrulama - senkron (OpenFeign)
@@ -66,10 +62,10 @@ public class OrderService {
         TariffView tariff = fetchTariff(request.tariffCode());
         BigDecimal price = tariff.monthlyFee();
 
-        // 3) Siparis + kalem
+        // 3) Siparis + kalem (PENDING_PAYMENT)
         Order order = new Order();
         order.setCustomerId(request.customerId());
-        order.setStatus("PLACED");
+        order.setStatus(OrderStatus.PENDING_PAYMENT);
         order.setTotalAmount(price);
         order.setCurrency(CURRENCY);
         order.setCreatedAt(Instant.now());
@@ -81,23 +77,20 @@ public class OrderService {
         order.addItem(item);
         orderRepository.save(order);
 
-        // 4) Outbox event - AYNI transaction icinde (transactional outbox)
-        UUID eventId = UUID.randomUUID();
-        OrderPlacedEvent event = new OrderPlacedEvent(eventId, order.getId(), order.getCustomerId(),
-                tariff.code(), price, CURRENCY, Instant.now());
-        OutboxEvent outbox = new OutboxEvent();
-        outbox.setId(UUID.randomUUID());
-        outbox.setAggregateType("Order");
-        outbox.setAggregateId(order.getId());
-        outbox.setEventType("orderPlaced");
-        outbox.setPayload(objectMapper.writeValueAsString(event));
-        outbox.setStatus(OutboxStatus.PENDING);
-        outbox.setRetryCount(0);
-        outbox.setCreatedAt(Instant.now());
-        outboxRepository.save(outbox);
+        // 4) Saga'yi baslat - AYNI transaction icinde (saga_states + ilk komut outbox'a yazilir)
+        orchestrator.start(order, request.customerId(), tariff.code(), price, CURRENCY);
 
         return new OrderResponse(order.getId(), order.getCustomerId(), order.getStatus(),
-                order.getTotalAmount(), order.getCurrency(), tariff.code(), eventId);
+                order.getTotalAmount(), order.getCurrency(), tariff.code());
+    }
+
+    @Transactional(readOnly = true)
+    public OrderResponse getOrder(UUID id) {
+        Order order = orderRepository.findById(id)
+                .orElseThrow(() -> new InvalidOrderException("Siparis bulunamadi: " + id));
+        String tariffCode = order.getItems().isEmpty() ? null : order.getItems().get(0).getProductCode();
+        return new OrderResponse(order.getId(), order.getCustomerId(), order.getStatus(),
+                order.getTotalAmount(), order.getCurrency(), tariffCode);
     }
 
     private CustomerView fetchCustomer(UUID id) {

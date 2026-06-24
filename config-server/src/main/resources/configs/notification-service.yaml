@@ -4,13 +4,13 @@ spring:
     username: ${DB_USER:notification_user}
     password: ${DB_PASS:secret}
     driver-class-name: org.postgresql.Driver
-  # --- order-events tuketicisi (inbox idempotent consumer) ---
+  # --- order-events tuketicisi (OrderConfirmed/OrderCancelled -> bildirim; inbox idempotent) ---
   cloud:
     function:
-      definition: consumeOrderPlaced
+      definition: consumeOrderEvents
     stream:
       bindings:
-        consumeOrderPlaced-in-0:
+        consumeOrderEvents-in-0:
           destination: order-events
           group: notification-service-group
       kafka:

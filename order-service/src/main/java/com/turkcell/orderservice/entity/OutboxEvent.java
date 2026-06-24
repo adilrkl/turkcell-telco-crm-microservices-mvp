@@ -24,7 +24,8 @@ public class OutboxEvent {
 
     private UUID aggregateId;     // ornek: orderId
     private String aggregateType; // ornek: "Order"
-    private String eventType;     // ornek: "orderPlaced"
+    private String eventType;     // ornek: "ReserveMsisdnCommand"
+    private String destination;   // hedef Kafka topic (subscription-commands / payment-commands / order-events)
 
     @Column(columnDefinition = "text")
     private String payload;       // serialize edilmis JSON event
@@ -46,6 +47,8 @@ public class OutboxEvent {
     public void setAggregateType(String aggregateType) { this.aggregateType = aggregateType; }
     public String getEventType() { return eventType; }
     public void setEventType(String eventType) { this.eventType = eventType; }
+    public String getDestination() { return destination; }
+    public void setDestination(String destination) { this.destination = destination; }
     public String getPayload() { return payload; }
     public void setPayload(String payload) { this.payload = payload; }
     public String getErrorMessage() { return errorMessage; }
