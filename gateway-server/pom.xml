@@ -28,6 +28,34 @@
       <groupId>org.springframework.cloud</groupId>
       <artifactId>spring-cloud-starter-config</artifactId>
     </dependency>
+
+    <!-- ============================================================= -->
+    <!-- Rate limiting (edge): Bucket4j token-bucket + Redis (Lettuce). -->
+    <!-- docx §13 'Gateway'de Redis tabanli rate limit' burada servlet  -->
+    <!-- (Gateway Server WebMVC) variantinda uygulanir; reactive         -->
+    <!-- RedisRateLimiter bu stack'te YOK. Sayac Redis'te tutulur (CAS), -->
+    <!-- boylece gateway yatay olceklenince limit instance'lar arasinda  -->
+    <!-- tutarli kalir. lettuce-core surumu Spring Boot BOM'undan gelir. -->
+    <!-- ============================================================= -->
+    <dependency>
+      <groupId>io.lettuce</groupId>
+      <artifactId>lettuce-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.bucket4j</groupId>
+      <artifactId>bucket4j_jdk17-core</artifactId>
+      <version>8.13.1</version>
+    </dependency>
+    <dependency>
+      <groupId>com.bucket4j</groupId>
+      <artifactId>bucket4j_jdk17-redis-common</artifactId>
+      <version>8.13.1</version>
+    </dependency>
+    <dependency>
+      <groupId>com.bucket4j</groupId>
+      <artifactId>bucket4j_jdk17-lettuce</artifactId>
+      <version>8.13.1</version>
+    </dependency>
   </dependencies>
 
   <build>

@@ -121,6 +121,13 @@ spring:
   `billing` & `notification` saga DIŞIdır; yalnızca terminal `OrderConfirmed`/`OrderCancelled`'a reaksiyon verir.
 - Detaylı akış, topic topolojisi, test adımları ve compensation knob'ları için: [SAGA.md](SAGA.md)
 
+### 10. Rate Limiting (gateway, Redis tabanlı)
+- **Neden Bucket4j?** docx §13 "Gateway'de Redis tabanlı, user başına 100 req/min" diyor ama klasik **reactive** Spring Cloud Gateway'in hazır `RedisRateLimiter` filtresini varsayıyor. Bu proje **Gateway Server WebMVC (servlet stack)** kullandığından o filtre yok; servlet-uyumlu, distributed bir çözüm olarak **Bucket4j + Redis (Lettuce, CAS)** token-bucket entegre edildi.
+- **Anahtar:** kimlik doğrulanmış kullanıcı (`Authorization` Bearer JWT'sinin `sub` claim'i — gateway imza doğrulamaz, downstream resource-server'lar zaten doğrular; bu yalnızca sayaç anahtarıdır). Token yoksa istemci IP'sine (`X-Forwarded-For` ilk atlama) düşer.
+- **Limit:** varsayılan **100 req/dk** (greedy refill → 100 burst + ~1.67/sn sürdürülebilir). Sayaç Redis'te (`telco:rl:<user|ip>:<id>`) tutulur; gateway yatay ölçeklenince (docx §5 stateless/HPA) tüm instance'lar aynı sayacı paylaşır.
+- **Aşımda:** `429 Too Many Requests` + `Retry-After` + `X-RateLimit-Limit/Remaining/Retry-After-Seconds`; gövde proje konvansiyonuyla `ApiResponse` (`errorCode: RATE_LIMIT_EXCEEDED`). `/actuator/**` (health/Prometheus scrape) limit dışıdır.
+- **Ayarlar:** config-server `gateway-server.yaml` → `telco.ratelimit.*` (`enabled`, `capacity`, `period`, `redis.*`); env ile ezilebilir (`RATELIMIT_CAPACITY` vb.).
+
 ## Başlangıç
 
 ### 1. Altyapıyı ayağa kaldır
@@ -239,7 +246,7 @@ telco-crm-platform/
 
 - ✅ **Saga orchestration uygulandı** — order orchestrator (`saga_states`) + reserve→ödeme→aktivasyon + compensation + timeout. Bkz. [SAGA.md](SAGA.md).
 - ✅ **subscription / payment servisleri** saga akışına dahil edildi (iskeletten dolduruldu).
-- rate limit yapısı entegre edilecek.
+- ✅ **Rate limiting entegre edildi** — gateway'de Bucket4j + Redis (Lettuce) token-bucket; user (JWT `sub`) / IP başına 100 req/dk; 429 + `Retry-After` + `X-RateLimit-*`. Bkz. §10.
 - Feign çağrılarına Resilience4j circuit breaker + fallback.
 - OutboxPoller için çoklu-instance güvenliği (`SELECT ... FOR UPDATE SKIP LOCKED`).
 - Saga: compensation ack'lerini bekleyen iki-fazlı iptal + Kafka DLQ/retry; aylık bill-run + `InvoiceGenerated → Payment` (recurring auto-pay).

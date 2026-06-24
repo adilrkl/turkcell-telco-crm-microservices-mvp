@@ -50,3 +50,22 @@ management:
     web:
       exposure:
         include: health,info,metrics,prometheus,gateway
+
+# ----------------------------------------------------------------------
+# Rate limiting (edge) — docx §13: "Gateway'de Redis tabanli; user basina
+# 100 req/min varsayilan." Servlet gateway'de Bucket4j + Redis (Lettuce)
+# ile uygulanir (reactive RedisRateLimiter bu stack'te yok). Sayac Redis'te
+# tutulur -> gateway yatay olceklendiginde limit instance'lar arasi tutarli.
+#   anahtar: JWT 'sub' (varsa) -> yoksa istemci IP'si
+#   asildiginda: 429 + Retry-After + X-RateLimit-* header'lari
+# ----------------------------------------------------------------------
+telco:
+  ratelimit:
+    enabled: ${RATELIMIT_ENABLED:true}
+    capacity: ${RATELIMIT_CAPACITY:100}
+    period: ${RATELIMIT_PERIOD:1m}
+    excluded-paths: /actuator
+    redis:
+      host: ${RATELIMIT_REDIS_HOST:localhost}
+      port: ${RATELIMIT_REDIS_PORT:6379}
+      password: ${RATELIMIT_REDIS_PASSWORD:}
