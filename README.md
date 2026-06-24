@@ -2,7 +2,7 @@
 
 Spring Boot 4.0.6 ve Spring Cloud 2025.1.1 tabanlı, çok modüllü Maven mikroservis projesi.
 Hocanın (Halit Kalaycı / GYGY5) konu konu işlediği yapılar — **Config Server, Keycloak,
-Redis cache, Kafka Transactional Outbox/Inbox, OpenFeign ve BFF** — bu telco CRM sistemine
+Redis cache, Kafka Transactional Outbox/Inbox, OpenFeign, BFF ve Observability** — bu telco CRM sistemine
 entegre edilmiştir.
 
 ## Ekip
@@ -23,6 +23,7 @@ entegre edilmiştir.
 - **Apache Kafka 4.2 (KRaft)** — Spring Cloud Stream ile event akışı
 - **Keycloak 26.1** — OAuth2/OIDC kimlik sağlayıcı (tek IdP)
 - **Springdoc OpenAPI 3.0.3** — servis bazlı OpenAPI spec + Swagger UI
+- **Micrometer + OpenTelemetry + Grafana LGTM** — metrics, distributed tracing ve log korelasyonu
 - **Docker Compose** — yerel altyapı
 - **Maven** — multi-module build
 
@@ -55,6 +56,11 @@ entegre edilmiştir.
 | kafka-ui | 8080 | <http://localhost:8080> |
 | Redis | 6379 | AOF persistence |
 | Keycloak | 8095 | <http://localhost:8095> · admin/admin · realm `telco-crm` |
+| Grafana | 3000 | Observability UI · admin/admin |
+| Prometheus | 9090 | `/actuator/prometheus` scrape hedefleri |
+| Tempo | 3200 | Distributed trace backend |
+| Loki | 3100 | Log backend |
+| OTel Collector | 4317/4318 | OTLP gRPC / HTTP giriş noktası |
 
 ## Entegre Edilen Yapılar
 
@@ -100,13 +106,21 @@ spring:
 - Varsayilan olarak lokal/dev kullanım icin aciktir. Prod/internal olmayan ortamlarda
   `application-prod.yaml` varsayilan olarak kapatir; internal ihtiyacta env ile tekrar acilabilir.
 
+### 8. Observability (Metrics + Traces + Logs)
+- **Metrics:** servisler `/actuator/prometheus` endpoint'i açar; Prometheus bu endpoint'leri scrape eder.
+- **Traces:** Spring Boot observation verisi OpenTelemetry ile OTel Collector'a, oradan Tempo'ya akar.
+- **Logs:** loki4j logback appender logları Loki'ye yollar; loglarda `traceId`/`spanId` korelasyonu bulunur.
+- **Grafana:** Prometheus, Tempo ve Loki datasource'ları provision edilir; metrikten trace'e, trace'ten loga geçiş yapılabilir.
+- Detaylı mimari, doğrulama komutları ve sorun giderme için: [OBSERVABILITY.md](OBSERVABILITY.md)
+
 ## Başlangıç
 
 ### 1. Altyapıyı ayağa kaldır
 ```bash
 docker compose up -d
 ```
-PostgreSQL'ler + pgAdmin + Kafka + kafka-ui + Redis + Keycloak (realm otomatik import) başlar.
+PostgreSQL'ler + pgAdmin + Kafka + kafka-ui + Redis + Keycloak (realm otomatik import)
+ve Grafana/Prometheus/Tempo/Loki/OTel Collector başlar.
 
 ### 2. Tüm modülleri derle
 ```bash
@@ -157,6 +171,8 @@ Bu tek çağrı şunları tetikler:
 - Config: `curl http://localhost:8889/order-service/dev`
 - Redis cache: `docker exec telcocrm-redis redis-cli KEYS '*'`
 - Kafka: kafka-ui <http://localhost:8080> → `order-events`
+- Grafana: <http://localhost:3000> → Telco CRM dashboard / Explore
+- Prometheus targets: <http://localhost:9090/targets> → `spring-services` hedefleri UP olmalı
 - 403: `testuser` ile `POST /api/catalog/tariffs` → 403 (sadece `CATALOG_ADMIN`)
 - BFF login: tarayıcıda <http://localhost:9000/oauth2/authorization/keycloak>
 - OpenAPI:
@@ -175,14 +191,21 @@ Bu tek çağrı şunları tetikler:
 - **Senkron çağrı** — OpenFeign (+ Eureka load-balancing)
 - **Cache** — Redis (okuma yoğun servisler)
 - **API Contract** — Springdoc OpenAPI + Swagger UI
+- **Observability** — Micrometer/OpenTelemetry + Prometheus, Grafana, Tempo, Loki; `traceId` ile metric/trace/log korelasyonu
 
 ## Proje Yapısı
 
 ```
 telco-crm-platform/
 ├── pom.xml                       # parent pom
-├── docker-compose.yml            # postgres'ler + pgadmin + kafka + redis + keycloak
+├── docker-compose.yml            # postgres'ler + pgadmin + kafka + redis + keycloak + observability stack
+├── OBSERVABILITY.md              # metrics/traces/logs mimarisi ve doğrulama adımları
 ├── docker/keycloak/telco-crm-realm.json
+├── docker/grafana/               # datasource/dashboard provisioning
+├── docker/prometheus/            # scrape config
+├── docker/otel/                  # OpenTelemetry Collector config
+├── docker/tempo/                 # distributed tracing backend config
+├── docker/loki/                  # log backend config
 ├── common-lib/                   # ApiResponse, exception advice, JWT converter, RestPage, OrderPlacedEvent, autoconfig
 ├── config-server/                # Spring Cloud Config (native) + configs/ ağacı
 ├── eureka-server/                # service registry
@@ -202,6 +225,7 @@ telco-crm-platform/
 
 ## Sonraki Adımlar
 
+- rate limit yapısı entegre edilecek.
 - subscription / payment servislerini event akışına dahil et (OrderPlaced → provision, InvoiceIssued → payment).
 - Saga orchestration (`order-service` `saga_states` tablosu hazır).
 - Feign çağrılarına Resilience4j circuit breaker + fallback.
