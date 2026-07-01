@@ -128,6 +128,12 @@ spring:
 - **Aşımda:** `429 Too Many Requests` + `Retry-After` + `X-RateLimit-Limit/Remaining/Retry-After-Seconds`; gövde proje konvansiyonuyla `ApiResponse` (`errorCode: RATE_LIMIT_EXCEEDED`). `/actuator/**` (health/Prometheus scrape) limit dışıdır.
 - **Ayarlar:** config-server `gateway-server.yaml` → `telco.ratelimit.*` (`enabled`, `capacity`, `period`, `redis.*`); env ile ezilebilir (`RATELIMIT_CAPACITY` vb.).
 
+### 11. CQRS (mediator tabanlı)
+- **Framework `common-lib`'te:** `com.turkcell.commonlib.cqrs` altında `Command`/`Query`/`CommandHandler`/`QueryHandler` arayüzleri, `Mediator` + `SpringMediator` ve pipeline (`LoggingBehavior`). `CqrsAutoConfiguration` ile **auto-configuration** olarak tüm servislere dağıtılır (component-scan değil — repo konvansiyonu).
+- **Feature-based:** Her servis `application/features/<entity>/{command,query,mapper,rule}` yapısını kullanır; controller yalnızca `Mediator`'a bağımlıdır (`mediator.send(command|query)`), cevabı `ApiResponse<T>` ile sarar.
+- **Proxy-aware çözüm:** `@Cacheable`/`@Transactional` ile proxy'lenen handler'lar `AopProxyUtils.ultimateTargetClass` ile doğru eşleşir; cache/transaction advice korunur. İzole test: `common-lib/.../cqrs/SpringMediatorTest`.
+- **Uygulanan servisler:** product-catalog (create + get/list), order (place + get), customer (get/list). Detay: [CQRS.md](CQRS.md).
+
 ## Başlangıç
 
 ### 1. Altyapıyı ayağa kaldır
@@ -205,6 +211,7 @@ Bu tek çağrı **saga'yı** başlatır:
 - **Güvenlik** — Keycloak (OAuth2/OIDC), tüm servisler JWT resource-server
 - **Event-Driven** — Transactional Outbox/Inbox + Kafka (Spring Cloud Stream)
 - **Saga Orchestration** — order-service orchestrator + `saga_states`; reserve→ödeme→aktivasyon, compensation'lı ([SAGA.md](SAGA.md))
+- **CQRS** — mediator tabanlı (common-lib framework, auto-config); feature-based command/query handler'lar ([CQRS.md](CQRS.md))
 - **Senkron çağrı** — OpenFeign (+ Eureka load-balancing)
 - **Cache** — Redis (okuma yoğun servisler)
 - **API Contract** — Springdoc OpenAPI + Swagger UI
@@ -225,7 +232,7 @@ telco-crm-platform/
 ├── docker/otel/                  # OpenTelemetry Collector config
 ├── docker/tempo/                 # distributed tracing backend config
 ├── docker/loki/                  # log backend config
-├── common-lib/                   # ApiResponse, exception advice, JWT converter, RestPage, saga event kontratları, autoconfig
+├── common-lib/                   # ApiResponse, exception advice, JWT converter, RestPage, saga event kontratları, CQRS mediator, autoconfig
 ├── config-server/                # Spring Cloud Config (native) + configs/ ağacı
 ├── eureka-server/                # service registry
 ├── gateway-server/               # API gateway

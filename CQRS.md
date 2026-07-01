@@ -1,206 +1,135 @@
-# CQRS (Command Query Responsibility Segregation) Tasarım Deseni Uygulaması
+# CQRS (Command Query Responsibility Segregation) — Platform Deseni
 
-Bu doküman, `product-catalog-service` mikroservisinde gerçekleştirilen **CQRS** refactoring çalışmasını detaylandırmaktadır. 
+Bu doküman, platform genelinde uygulanan **mediator tabanlı CQRS** yapısını anlatır.
+Yazma (Command) ve okuma (Query) sorumlulukları ayrı model + handler'lara bölünür; controller'lar
+handler'lara doğrudan değil, ortak bir **Mediator** üzerinden erişir (MediatR benzeri yaklaşım).
 
----
-
-## 1. CQRS Nedir ve Neden Uygulandı?
-
-**CQRS (Command Query Responsibility Segregation)**, veri yazma (Command) ve veri okuma (Query) işlemlerinin sorumluluklarının ve modellerinin birbirinden ayrılmasını öngören bir tasarım desenidir. 
-
-**Sağladığı Avantajlar:**
-- **Sorumlulukların Ayrılması (Single Responsibility):** Yazma ve okuma yollarındaki iş mantıkları birbirinden tamamen izole edilir.
-- **Performans ve Ölçeklenebilirlik:** Yazma ve okuma yolları farklı ölçekleme gereksinimlerine sahip olabilir. Okuma yükü yüksek olan sistemlerde okuma metotları/veritabanları bağımsız şekilde optimize edilebilir (örneğin Redis önbelleği ile).
-- **Bakım Kolaylığı:** Kod tabanında büyük, monolitik servis sınıfları (örn: `TariffServiceImpl`) yerine, her bir operasyona özel, odaklanmış küçük sınıflar (Handlers) yer alır.
+> Referans yapı: hocanın [turkcell-gygy-5/spring-cqrs](https://github.com/halitkalayci/turkcell-gygy-5/tree/master/spring-cqrs)
+> projesindeki mediator + pipeline + feature-based (vertical slice) tasarımı esas alınmıştır.
 
 ---
 
-## 2. Neden `product-catalog-service` Tercih Edildi?
+## 1. Neden CQRS ve Neden Mediator?
 
-`product-catalog-service`, tarife ve paket bilgilerini yöneten, mimarideki tipik bir **Read-Heavy (Okuma Yoğun)** servistir:
-1. **Yazma Sıklığı Düşüktür:** Yeni bir tarife yalnızca yönetici (`CATALOG_ADMIN`) tarafından oluşturulur (`POST /api/catalog/tariffs`).
-2. **Okuma Sıklığı Çok Yüksektir:** Sistemdeki diğer tüm servisler (örn: `order-service` OpenFeign ile sipariş alırken) ve son kullanıcılar sürekli tarifeleri okur (`GET /api/catalog/tariffs/{code}`).
-3. **Önbellek (Cache) Kritik Önemdedir:** Okuma yollarında Redis önbelleği (`@Cacheable`) kullanılırken, yeni tarife eklendiğinde bu önbellekler geçersiz kılınmaktadır (`@CacheEvict`).
-
-Bu yapı, CQRS deseninin Command (yazma + cache geçersiz kılma) ve Query (okuma + önbellekten getirme) mantığını en temiz şekilde yansıtabileceği ideal bir adaydır.
+- **Sorumlulukların ayrılması:** Yazma ve okuma yollarının iş mantığı izole edilir.
+- **Performans/ölçeklenebilirlik:** Okuma yolları bağımsız optimize edilebilir (örn. Redis `@Cacheable`),
+  yazma yolları cache'i geçersiz kılar (`@CacheEvict`).
+- **Bakım kolaylığı:** Büyük `*ServiceImpl` sınıfları yerine her operasyona özel küçük handler'lar.
+- **Mediator:** Controller yalnızca `Mediator`'a bağımlıdır; capraz kesitler (loglama, ileride
+  authorization/validation) pipeline behavior'ları ile tek yerden eklenir.
 
 ---
 
-## 3. Yeni Mimari ve Dizin Yapısı
+## 2. Mimari Karar: Framework `common-lib`'te, Auto-Configuration ile
 
-Refactoring sonrasında `product-catalog-service` altındaki paket yapısı aşağıdaki gibi düzenlenmiştir:
+CQRS **altyapısı** (Mediator, pipeline, `Command/Query/Handler` arayüzleri) `common-lib`'e konur ve
+Spring Boot **auto-configuration** ile tüm servislere dağıtılır — component-scan **değil**.
+
+**Neden auto-config (sektör standardı):** Paylaşılan bir kütüphanenin bean'lerini tüketici servislere
+dağıtmanın standart yolu Spring Boot starter/auto-config desenidir. Consumer'ı kütüphanenin iç paket
+yapısına bağlamaz, koşullu (`@ConditionalOnMissingBean`) ve override edilebilir. Repo zaten bu deseni
+kullanıyor (`ResourceServerSecurityAutoConfiguration`, `CommonOpenApiAutoConfiguration`, ...).
+
+**Hibrit sonuç:**
+- **Framework** → `common-lib` (`com.turkcell.commonlib.cqrs.*`), `CqrsAutoConfiguration` ile bean olur.
+- **Feature'lar** (command/query/handler/mapper/rule) → her servisin **kendi** base paketinde,
+  servisin normal component-scan'i ile bulunur.
+
+Bu sayede henüz boş olan servisler (identity/usage/ticket) ileride kod aldığında ekstra kurulum
+yapmadan `implements Command/Query` + `mediator.send(...)` ile CQRS'i kullanır.
+
+---
+
+## 3. Framework (`common-lib` / `com.turkcell.commonlib.cqrs`)
 
 ```text
-product-catalog-service/src/main/java/com/turkcell/productcatalogservice/
-│
-├── controller/
-│   └── CatalogController.java              # Command ve Query Handler'ları doğrudan çağırır
-│
-├── cqrs/
-│   ├── command/
-│   │   ├── handler/
-│   │   │   └── CreateTariffCommandHandler.java # DB'ye yazar ve Redis önbelleğini temizler
-│   │   └── model/
-│   │       └── CreateTariffCommand.java     # Yazma parametrelerini tutan immutable record
-│   │
-│   └── query/
-│       ├── handler/
-│       │   ├── GetTariffByCodeQueryHandler.java # Tekil okuma yapar (@Cacheable)
-│       │   └── ListTariffsQueryHandler.java    # Sayfalı okuma yapar (@Cacheable)
-│       └── model/
-│           ├── GetTariffByCodeQuery.java    # Tekil sorgu parametresi
-│           └── ListTariffsQuery.java        # Sayfalı sorgu parametresi (Pageable)
-│
-├── entity/
-│   └── Tariff.java                          # JPA Veritabanı Varlığı
-│
-└── repository/
-    └── TariffRepository.java                # Spring Data JPA Arayüzü
+common-lib/.../commonlib/cqrs/
+├── Command.java                 # Command<R> belirtec arayuzu (R = donus tipi)
+├── Query.java                   # Query<R> belirtec arayuzu
+├── CommandHandler.java          # CommandHandler<C extends Command<R>, R> { R handle(C) }
+├── QueryHandler.java            # QueryHandler<Q extends Query<R>, R> { R handle(Q) }
+├── Mediator.java                # send(Command<R>) / send(Query<R>)
+├── SpringMediator.java          # reflection ile handler cozer + pipeline calistirir
+├── CqrsAutoConfiguration.java   # Mediator + LoggingBehavior bean'lerini saglar (auto-config)
+└── pipeline/
+    ├── PipelineBehavior.java        # handle(request, next) + supports(request)
+    ├── RequestHandlerDelegate.java  # @FunctionalInterface -> zincir adimi
+    ├── LoggingBehavior.java         # @Order(20), her istegi loglar (NotLoggableRequest haric)
+    └── NotLoggableRequest.java      # loglanmamasi gereken istekler icin belirtec
 ```
 
----
+`CqrsAutoConfiguration` `META-INF/spring/.../AutoConfiguration.imports` dosyasına eklidir.
 
-## 4. Uygulanan Kodların Detayları
+### `SpringMediator` — proxy-aware handler çözümü
+Handler'lar `@Cacheable`/`@Transactional` ile **CGLIB proxy'lenebildiği** için, hocanın referansındaki
+naif reflection (`TODO: Refactor` notlu) yerine gerçek tip
+`AopProxyUtils.ultimateTargetClass(bean)` ile çözülür; dönen (proxy'li) bean üzerinde cache/transaction
+advice'ı korunur. Eşleştirme sonucu handler singleton olduğu için `ConcurrentHashMap`'te cache'lenir.
 
-### A. Command (Yazma) Yolu
-Yeni bir tarife oluşturulduğunda önbelleğin güncel kalması için **tüm ilgili cache alanları temizlenir** (`@CacheEvict`).
-
-*   **Command Modeli (`CreateTariffCommand.java`):**
-    Yazma işlemi için gerekli olan immutable (salt-okunur) veri yapısıdır.
-    ```java
-    public record CreateTariffCommand(
-        String code,
-        String name,
-        String type,
-        BigDecimal monthlyFee,
-        Integer minutesIncluded,
-        Integer smsIncluded,
-        Integer dataMbIncluded
-    ) {}
-    ```
-
-*   **Command Handler (`CreateTariffCommandHandler.java`):**
-    İş mantığını yürütür, veriyi veri tabanına kaydeder ve Redis cache temizliğini yönetir.
-    ```java
-    @Component
-    public class CreateTariffCommandHandler {
-        private final TariffRepository repository;
-
-        public CreateTariffCommandHandler(TariffRepository repository) {
-            this.repository = repository;
-        }
-
-        @Caching(evict = {
-                @CacheEvict(value = "tariffByCode", allEntries = true),
-                @CacheEvict(value = "tariffPage", allEntries = true)
-        })
-        public TariffResponse handle(CreateTariffCommand command) {
-            Tariff tariff = new Tariff();
-            // ... alan eşleştirmeleri ...
-            tariff.setStatus("ACTIVE");
-            tariff.setEffectiveFrom(LocalDate.now());
-            return toResponse(repository.save(tariff));
-        }
-    }
-    ```
+Bu davranış izole bir testle doğrulanmıştır: `common-lib/src/test/.../cqrs/SpringMediatorTest.java`
+(command/query eşleştirme + `@Cacheable` proxy + record-accessor SpEL key + "handler bulunamadı").
 
 ---
 
-### B. Query (Okuma) Yolu
-Okuma istekleri doğrudan ilgili Query Handler'lar tarafından karşılanır ve Redis cache desteğiyle en yüksek performansta döner (`@Cacheable`).
+## 4. Servis İçi Feature Yapısı (vertical slice)
 
-*   **Get Tariff By Code Query & Handler:**
-    Tekil tarife getirme işlemini yönetir.
-    ```java
-    // Query Modeli
-    public record GetTariffByCodeQuery(String code) {}
+Her servis, kendi base paketi altında `application/features/<entity>/` yapısını kullanır:
 
-    // Query Handler
-    @Component
-    public class GetTariffByCodeQueryHandler {
-        private final TariffRepository repository;
+```text
+application/features/<entity>/
+├── command/<action>/
+│   ├── <Action>Command.java         # record ... implements Command<Response> (+ @Valid)
+│   └── <Action>CommandHandler.java  # @Component implements CommandHandler<Command, Response>
+├── query/<action>/
+│   ├── <Action>Query.java           # record ... implements Query<Response>
+│   └── <Action>QueryHandler.java    # @Component implements QueryHandler<Query, Response>
+├── mapper/<Entity>Mapper.java       # entity <-> command/response donusumleri
+└── rule/<Entity>BusinessRules.java  # is kurallari (opsiyonel)
+```
 
-        @Cacheable(value = "tariffByCode", key = "#query.code")
-        public TariffResponse handle(GetTariffByCodeQuery query) {
-            Tariff tariff = repository.findByCode(query.code())
-                    .orElseThrow(() -> new ResourceNotFoundException("Tariff", query.code()));
-            return toResponse(tariff);
-        }
-    }
-    ```
-
-*   **List Tariffs Query & Handler:**
-    Sayfalanmış tarife listesini getirme işlemini yönetir.
-    ```java
-    // Query Modeli
-    public record ListTariffsQuery(Pageable pageable) {}
-
-    // Query Handler
-    @Component
-    public class ListTariffsQueryHandler {
-        private final TariffRepository repository;
-
-        @Cacheable(value = "tariffPage", key = "'p=' + #query.pageable.pageNumber + ';s=' + #query.pageable.pageSize")
-        public RestPage<TariffResponse> handle(ListTariffsQuery query) {
-            return new RestPage<>(repository.findAll(query.pageable()).map(ListTariffsQueryHandler::toResponse));
-        }
-    }
-    ```
-
----
-
-### C. Controller Entegrasyonu (`CatalogController.java`)
-Eski yapıda bulunan ve hem yazmayı hem okumayı barındıran `TariffService` bağımlılığı tamamen kaldırılmıştır. Controller artık doğrudan ilgili **Command ve Query Handler** nesnelerine bağımlıdır.
+Controller yalnızca `Mediator`'a bağımlıdır ve cevabı platform standardı `ApiResponse<T>` ile sarar:
 
 ```java
-@RestController
-@RequestMapping("/api/catalog/tariffs")
-public class CatalogController {
-
-    private final CreateTariffCommandHandler createTariffCommandHandler;
-    private final GetTariffByCodeQueryHandler getTariffByCodeQueryHandler;
-    private final ListTariffsQueryHandler listTariffsQueryHandler;
-
-    public CatalogController(CreateTariffCommandHandler createTariffCommandHandler,
-                             GetTariffByCodeQueryHandler getTariffByCodeQueryHandler,
-                             ListTariffsQueryHandler listTariffsQueryHandler) {
-        this.createTariffCommandHandler = createTariffCommandHandler;
-        this.getTariffByCodeQueryHandler = getTariffByCodeQueryHandler;
-        this.listTariffsQueryHandler = listTariffsQueryHandler;
-    }
-
-    @GetMapping("/{code}")
-    public ApiResponse<TariffResponse> getByCode(@PathVariable String code) {
-        return ApiResponse.ok(getTariffByCodeQueryHandler.handle(new GetTariffByCodeQuery(code)));
-    }
-
-    @GetMapping
-    public ApiResponse<RestPage<TariffResponse>> list(Pageable pageable) {
-        return ApiResponse.ok(listTariffsQueryHandler.handle(new ListTariffsQuery(pageable)));
-    }
-
-    @PostMapping
-    @PreAuthorize("hasRole('CATALOG_ADMIN')")
-    public ApiResponse<TariffResponse> create(@Valid @RequestBody CreateTariffRequest request) {
-        CreateTariffCommand command = new CreateTariffCommand(
-                request.code(), request.name(), request.type(), request.monthlyFee(),
-                request.minutesIncluded(), request.smsIncluded(), request.dataMbIncluded()
-        );
-        return ApiResponse.ok(createTariffCommandHandler.handle(command), "Tarife olusturuldu");
-    }
+@PostMapping
+@PreAuthorize("hasRole('CATALOG_ADMIN')")
+public ApiResponse<TariffResponse> create(@Valid @RequestBody CreateTariffCommand command) {
+    return ApiResponse.ok(mediator.send(command), "Tarife olusturuldu");
 }
 ```
 
----
-
-## 5. Eski Yapıdan Temel Farklar ve Değişiklikler
-
-1. **Silinen Dosyalar:** Monolitik iş mantığı içeren `TariffService.java` ve `TariffServiceImpl.java` dosyaları projeden tamamen silinmiştir.
-2. **Sıfır Dış Etki:** Yapılan tüm değişiklikler `product-catalog-service` sınırları içerisinde izole edilmiştir.
-3. **HTTP API Uyumlu Kalmıştır:** Controller sınıflarındaki URL eşlemeleri (`@GetMapping`, `@PostMapping`) ve veri yapıları (`CreateTariffRequest`, `TariffResponse`) birebir korunduğu için, API Gateway yönlendirmelerinde veya `order-service` içindeki OpenFeign senkron çağrılarında hiçbir kesinti yaşanmamıştır.
+> Not: Hoca cevabı doğrudan döner; biz gateway/BFF/Feign kontratı gereği `ApiResponse<T>` zarfını korur,
+> command'i ise hoca gibi doğrudan `@RequestBody` olarak bağlarız (ayrı `Create*Request` DTO'su yok).
 
 ---
 
-## 6. Test Edilmesi
+## 5. Uygulanan Servisler
 
-Yaptığımız bu implementasyonu test etmek için proje kök dizininde yer alan **[telco_crm_postman_collection.json](./telco_crm_postman_collection.json)** koleksiyonunu kullanabilirsiniz.
+| Servis | Command | Query | Cache |
+|---|---|---|---|
+| **product-catalog-service** | `CreateTariffCommand` | `GetTariffByCodeQuery`, `ListTariffsQuery` | `@Cacheable` okuma, `@CacheEvict` yazma |
+| **order-service** | `PlaceOrderCommand` (Feign doğrulama + saga başlatma, `@Transactional`) | `GetOrderQuery` (`@Transactional(readOnly)`) | — |
+| **customer-service** | — (yazma endpoint'i yok) | `GetCustomerByIdQuery` (`@Cacheable`), `GetAllCustomersQuery` | `@Cacheable` okuma |
+
+**Neden diğerleri değil:** subscription/payment (saf saga participant) ve billing/notification (saf Kafka
+consumer) zaten event-handler yapısındadır; controller→command/query split'i uygulanmaz. identity/usage/ticket
+şimdilik boş iskelettir — kod aldıklarında bu framework'ü kullanacaklardır (§6).
+
+---
+
+## 6. Yeni Bir Servise/Feature'a CQRS Ekleme
+
+1. Servis zaten `common-lib`'e bağımlıysa framework hazırdır (auto-config).
+2. `application/features/<entity>/...` altında command/query + handler'ları oluştur.
+3. Command/Query için: `record X... implements Command<Resp>` / `Query<Resp>`.
+4. Handler için: `@Component class XHandler implements CommandHandler<X, Resp>` (veya `QueryHandler`).
+5. Controller'a `Mediator` inject et, `mediator.send(...)` çağır, `ApiResponse` ile sar.
+6. Okuma yoğunsa handler'a `@Cacheable`, ilgili yazma handler'ına `@CacheEvict` ekle.
+
+---
+
+## 7. Test Edilmesi
+
+- **Birim/izolasyon:** `SpringMediatorTest` (DB/Kafka/Redis gerektirmez) — `./mvnw -pl common-lib test`.
+- **Uçtan uca:** Proje kök dizinindeki
+  **[telco_crm_postman_collection.json](./telco_crm_postman_collection.json)** koleksiyonu. Endpoint'ler ve
+  JSON gövdeleri değişmediği için mevcut istekler aynen çalışır.

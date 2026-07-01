@@ -1,3 +1,4 @@
 com.turkcell.commonlib.web.CommonWebAutoConfiguration
 com.turkcell.commonlib.security.ResourceServerSecurityAutoConfiguration
 com.turkcell.commonlib.openapi.CommonOpenApiAutoConfiguration
+com.turkcell.commonlib.cqrs.CqrsAutoConfiguration

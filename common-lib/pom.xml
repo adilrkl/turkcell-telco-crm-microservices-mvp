@@ -44,5 +44,13 @@
       <artifactId>springdoc-openapi-starter-common</artifactId>
       <optional>true</optional>
     </dependency>
+
+    <!-- CQRS mediator framework'unu (proxy-aware handler cozumu + @Cacheable SpEL)
+         izole dogrulamak icin. Sadece test scope. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 </project>
