@@ -1,28 +1,18 @@
-CREATE TABLE users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    username VARCHAR(100) NOT NULL UNIQUE,
-    email VARCHAR(255) NOT NULL UNIQUE,
-    password_hash VARCHAR(255) NOT NULL,
-    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
-    created_at TIMESTAMP NOT NULL DEFAULT now()
+-- identity-service kullanici PROFIL verisini tutar.
+-- Kimlik dogrulama (parola, token, oturum) tek IdP olan Keycloak'ta kalir;
+-- burada yalnizca Keycloak JWT'sindeki 'sub' claim'i ile eslesen profil bilgisi durur.
+CREATE TABLE user_profiles (
+    id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    keycloak_id        VARCHAR(100) NOT NULL UNIQUE,   -- Keycloak JWT 'sub' claim'i
+    username           VARCHAR(100) NOT NULL UNIQUE,
+    email              VARCHAR(255) UNIQUE,            -- token'da email scope yoksa null olabilir
+    first_name         VARCHAR(100),
+    last_name          VARCHAR(100),
+    phone_number       VARCHAR(30),
+    preferred_language VARCHAR(10)  NOT NULL DEFAULT 'tr',
+    status             VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_at         TIMESTAMP    NOT NULL DEFAULT now(),
+    updated_at         TIMESTAMP    NOT NULL DEFAULT now()
 );
 
-CREATE TABLE roles (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(50) NOT NULL UNIQUE,
-    description VARCHAR(255)
-);
-
-CREATE TABLE user_roles (
-    user_id UUID NOT NULL REFERENCES users(id),
-    role_id UUID NOT NULL REFERENCES roles(id),
-    PRIMARY KEY (user_id, role_id)
-);
-
-CREATE TABLE refresh_tokens (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id),
-    token_hash VARCHAR(255) NOT NULL UNIQUE,
-    expires_at TIMESTAMP NOT NULL,
-    revoked BOOLEAN NOT NULL DEFAULT false
-);
+CREATE INDEX idx_user_profiles_username ON user_profiles (username);

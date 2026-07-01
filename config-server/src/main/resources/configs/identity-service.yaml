@@ -4,3 +4,7 @@ spring:
     username: ${DB_USER:identity_user}
     password: ${DB_PASS:secret}
     driver-class-name: org.postgresql.Driver
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
