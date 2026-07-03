@@ -1,0 +1,5 @@
+node_modules/
+dist/
+*.local
+.openapi-generator/
+src/api/generated/
