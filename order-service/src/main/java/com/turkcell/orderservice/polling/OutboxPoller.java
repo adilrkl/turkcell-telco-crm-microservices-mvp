@@ -22,7 +22,8 @@ import com.turkcell.orderservice.repository.OutboxRepository;
 /**
  * Transactional Outbox relay: PENDING satirlari periyodik tarar, Kafka'ya
  * (Spring Cloud Stream / StreamBridge) publish eder ve SENT isaretler.
- * Tek instance icindir (SKIP LOCKED yok) - demo icin yeterli.
+ * Coklu instance guvenlidir: findPublishable FOR UPDATE SKIP LOCKED kullanir,
+ * her instance farkli PENDING satirlarini kilitleyip isler.
  */
 @Component
 public class OutboxPoller {

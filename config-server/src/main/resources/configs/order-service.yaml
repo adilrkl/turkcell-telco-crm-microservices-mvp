@@ -18,3 +18,23 @@ spring:
       kafka:
         binder:
           brokers: ${KAFKA_BROKERS:localhost:9092}
+        # Outbox publish sync olmali: send() broker ack'ini bekler, hata poller'in
+        # retry yoluna duser. Async'te send true donup mesaj buffer'da kaybolabilir.
+        default:
+          producer:
+            sync: true
+    # --- Resilience4j circuit breaker (Feign: customer + catalog cagrilari) ---
+    openfeign:
+      circuitbreaker:
+        enabled: true
+      client:
+        config:
+          default:
+            connect-timeout: 2000
+            read-timeout: 5000
+    circuitbreaker:
+      resilience4j:
+        # Cagri ayni thread'de kalsin: Bearer relay (RequestContextHolder) ve trace
+        # context'i thread-local'dan okundugu icin ayri thread pool'da KAYBOLUR.
+        # Timeout'u zaten Feign read-timeout sagliyor (TimeLimiter'a gerek yok).
+        disable-thread-pool: true

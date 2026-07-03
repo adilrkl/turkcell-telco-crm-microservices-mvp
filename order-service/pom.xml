@@ -44,6 +44,12 @@
       <groupId>org.springframework.cloud</groupId>
       <artifactId>spring-cloud-starter-openfeign</artifactId>
     </dependency>
+    <!-- Feign cagrilarina circuit breaker: customer/catalog erisilemezse devre acilir,
+         fallback ServiceUnavailableException (503) firlatir. -->
+    <dependency>
+      <groupId>org.springframework.cloud</groupId>
+      <artifactId>spring-cloud-starter-circuitbreaker-resilience4j</artifactId>
+    </dependency>
     <!-- Feign cagrilarini Micrometer Observation'a baglar: order -> customer/catalog
          hop'u ayni trace icinde span uretir ve W3C traceparent header'i tasinir. -->
     <dependency>

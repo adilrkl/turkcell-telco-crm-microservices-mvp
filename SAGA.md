@@ -273,7 +273,8 @@ Eşik `PaymentSagaService.FAIL_THRESHOLD`, `_FAIL` kuralı `SubscriptionSagaServ
 2. **StreamBridge dinamik destination** - komutlar için output binding tanımlanmadı; poller `destination` kolonundaki topic'e doğrudan gönderir.
 3. **`eventType` header'ı güvenli okunur** - Kafka binder header'ı String ya da byte[] verebildiği için her iki durum da ele alınır.
 4. **Flyway immutability** - payment/subscription'ın mevcut V1'i değiştirilmedi; saga şeması V2 olarak eklendi.
-5. **Tek instance** - OutboxPoller'da `SKIP LOCKED` yok (demo için yeterli; çoklu-instance için sonraki adım).
+5. **Çoklu instance güvenli** - OutboxPoller'ın `findPublishable` sorgusu `FOR UPDATE SKIP LOCKED` kullanır (order/subscription/payment); her instance farklı PENDING satırlarını kilitleyip işler, çift publish olmaz.
+6. **Sync publish** - Kafka producer `sync: true` (üç producer config'inde): `streamBridge.send` broker ack'ini bekler; ack gelmezse exception → satır PENDING kalır ve retry edilir. Aksi halde send `true` dönüp mesaj producer buffer'ında kaybolabilirdi (at-most-once).
 
 ---
 
@@ -299,8 +300,8 @@ Eşik `PaymentSagaService.FAIL_THRESHOLD`, `_FAIL` kuralı `SubscriptionSagaServ
 - Build: tüm modüller derleniyor (BUILD SUCCESS).
 
 **İyileştirme adayları:**
-- OutboxPoller çoklu-instance güvenliği (`SELECT ... FOR UPDATE SKIP LOCKED`).
-- Feign çağrılarına Resilience4j circuit breaker + fallback.
+- ~~OutboxPoller çoklu-instance güvenliği (`SELECT ... FOR UPDATE SKIP LOCKED`)~~ ✅ yapıldı (bkz. §12 not 5).
+- ~~Feign çağrılarına Resilience4j circuit breaker + fallback~~ ✅ yapıldı (bkz. README §12).
 - Compensation ack'lerini bekleyip CANCELLED'a geçen iki-fazlı iptal (şu an fire-and-forget).
 - Kafka DLQ + retry/backoff politikası.
 - Aylık bill-run + `InvoiceGenerated → Payment` (recurring auto-pay) senaryosu.

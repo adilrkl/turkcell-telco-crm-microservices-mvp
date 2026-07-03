@@ -6,8 +6,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 
 import com.turkcell.orderservice.client.dto.TariffEnvelope;
 
-/** product-catalog-service'e senkron cagri (fiyat cekme; cevap Redis cache'li). */
-@FeignClient(name = "product-catalog-service")
+/** product-catalog-service'e senkron cagri (fiyat cekme; cevap Redis cache'li, circuit breaker'li). */
+@FeignClient(name = "product-catalog-service", fallbackFactory = ProductCatalogClientFallbackFactory.class)
 public interface ProductCatalogClient {
 
     @GetMapping("/api/catalog/tariffs/{code}")

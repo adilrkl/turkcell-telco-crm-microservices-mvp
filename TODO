@@ -1,14 +1,18 @@
 DONE:
-- config-server eklendi (native backend, port 8889) + tüm servisler config-client
-- README.md güncellendi (entegre yapılar + demo)
-- Keycloak (tek IdP), Redis cache, Kafka Outbox/Inbox, OpenFeign, BFF entegre edildi
-- Flyway spring-boot-starter-flyway + flyway-database-postgresql ile düzeltildi (migration'lar çalışıyor)
+- config-server (native, 8889), Keycloak (tek IdP), Redis cache, Kafka Outbox/Inbox, OpenFeign, BFF
+- Observability: LGTM stack (Grafana/Tempo/Loki/Prometheus) + OTel Collector (OBSERVABILITY.md)
+- Springdoc OpenAPI + Swagger UI (OPENAPI.md)
+- Saga orchestration: order orchestrator + subscription/payment participant, compensation + timeout (SAGA.md)
+- Rate limiting: gateway'de Bucket4j + Redis, user/IP basina 100 req/dk
+- CQRS: mediator common-lib'te auto-config; product-catalog / order / customer (CQRS.md)
+- Faz 1: identity / usage / ticket CQRS domain'leri (PR #10-12)
+- Faz 2 (kismen): Feign'e Resilience4j CB + retry + timeout + fallback (order-service);
+  OutboxPoller coklu-instance (FOR UPDATE SKIP LOCKED, 3 producer'da)
 
-NEXT:
-- subscription/payment servislerini event akışına dahil et
-- saga orchestration (order-service saga_states hazır)
-- Feign + Resilience4j (circuit breaker / fallback)
-- OutboxPoller çoklu-instance (SKIP LOCKED)
-- er/ diyagramları ile şema uyumunu gözden geçir
-
-redis,kafka,bff,keycloak,config-server,euraka,gateway,resource-server mantığı?
+NEXT (README "Sonraki Adimlar" roadmap'ine gore):
+- Faz 2 kalan: Kafka DLQ + retry; saga sertlestirme (iki-fazli iptal); recurring billing (bill-run + auto-pay)
+- Faz 3: test & kalite (unit + Testcontainers integration + coverage gate) - su an ~0 kapsam
+- Faz 4: Dockerfile + CI + K8s/Helm
+- Faz 5: guvenlik sertlestirme (secret, TLS, gateway, Keycloak prod)
+- Faz 6: prod runtime (prod profilleri, alerting, yuk testi, MinIO, runbook)
+- Frontend: FRONTEND.md plani; once BFF'e /api/me

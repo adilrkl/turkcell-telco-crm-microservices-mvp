@@ -87,6 +87,8 @@ spring:
 ### 4. Kafka — Transactional Outbox / Inbox (Spring Cloud Stream)
 - **Producer (order + subscription + payment):** iş değişikliği + `outbox_events` satırı AYNI transaction'da yazılır.
   `OutboxPoller` (`@Scheduled`) PENDING satırları `StreamBridge` ile satırdaki `destination` topic'ine publish edip SENT işaretler.
+  Sorgu `FOR UPDATE SKIP LOCKED` kullanır: poller çoklu-instance güvenlidir, her instance farklı satırları kilitleyip işler.
+  Publish **sync**'tir (`kafka.default.producer.sync: true`): broker ack'i beklenir, hata poller'ın retry yoluna düşer — async'te mesaj sessizce kaybolabilirdi.
 - **Consumer:** `@Bean Consumer<Message<byte[]>>`; payload ham JSON, `eventType` header'ına göre dispatch.
   `processed_events` (inbox) ile idempotency — aynı `eventId` tekrar gelirse atlanır.
 - Event kontratları `common-lib`'te (`com.turkcell.commonlib.saga`) — tek kaynak. Bu outbox/inbox temeli üzerine **Saga** kuruldu (bkz. §9).
@@ -94,6 +96,7 @@ spring:
 ### 5. OpenFeign (senkron servisler-arası çağrı)
 - `order-service → customer-service` (müşteri doğrulama) ve `order-service → product-catalog-service` (fiyat).
 - Eureka service-id ile load-balanced; `RequestInterceptor` Bearer token'ı downstream'e taşır.
+- Her Feign çağrısı **Resilience4j circuit breaker** ile sarılıdır (bkz. §12).
 
 ### 6. BFF (bff-server, 9000)
 - `oauth2Login` (Authorization Code) — token sunucu session'ında, tarayıcıya sadece cookie.
@@ -133,6 +136,13 @@ spring:
 - **Feature-based:** Her servis `application/features/<entity>/{command,query,mapper,rule}` yapısını kullanır; controller yalnızca `Mediator`'a bağımlıdır (`mediator.send(command|query)`), cevabı `ApiResponse<T>` ile sarar.
 - **Proxy-aware çözüm:** `@Cacheable`/`@Transactional` ile proxy'lenen handler'lar `AopProxyUtils.ultimateTargetClass` ile doğru eşleşir; cache/transaction advice korunur. İzole test: `common-lib/.../cqrs/SpringMediatorTest`.
 - **Uygulanan servisler:** product-catalog (create + get/list), order (place + get), customer (get/list). Detay: [CQRS.md](CQRS.md).
+
+### 12. Resilience4j Circuit Breaker (order-service Feign çağrıları)
+- **Kapsam:** `order-service`'in iki senkron bağımlılığı — `customer-service` (müşteri doğrulama) ve `product-catalog-service` (fiyat). Downstream down/yavaş olduğunda sipariş endpoint'inin thread'leri bloke etmesi yerine hızlı ve anlamlı hata dönmesi hedeflenir (docx: "Resilience4j tüm dış çağrılarda").
+- **Entegrasyon:** `spring-cloud-starter-circuitbreaker-resilience4j` + `spring.cloud.openfeign.circuitbreaker.enabled: true`; her Feign metodu kendi circuit breaker'ını alır. Varsayılan ayar `Resilience4jConfig`'te: son 10 çağrının ≥ %50'si hata → devre 10 sn AÇIK → half-open'da 3 deneme.
+- **Fallback:** `FallbackFactory` — 4xx cevaplar iş hatasıdır (404 → "müşteri/tarife yok"), olduğu gibi geri fırlatılır ve devreyi SAYMAZ (status-bazlı `ignoreException` — `Retry-After` header'lı 4xx `RetryableException` olarak gelse bile); down/timeout/devre-açık ise `ServiceUnavailableException` (common-lib) → `ApiResponse` ile **503 SERVICE_UNAVAILABLE**.
+- **Retry:** Feign `Retryer` — ağ-seviyesi hatada (connect/read `IOException`) 1 yeniden deneme; iki çağrı da idempotent GET. Retry circuit breaker'ın İÇİNDE çalışır, breaker yalnızca nihai sonucu sayar.
+- **Thread tuzağı:** `spring.cloud.circuitbreaker.resilience4j.disable-thread-pool: true` — çağrı aynı thread'de kalır; aksi halde Bearer relay interceptor'ı (`RequestContextHolder`) ve trace context'i thread-local'dan okuyamazdı. Timeout'u Feign `connect-timeout: 2s / read-timeout: 5s` sağlar.
 
 ## Başlangıç
 
@@ -212,7 +222,7 @@ Bu tek çağrı **saga'yı** başlatır:
 - **Event-Driven** — Transactional Outbox/Inbox + Kafka (Spring Cloud Stream)
 - **Saga Orchestration** — order-service orchestrator + `saga_states`; reserve→ödeme→aktivasyon, compensation'lı ([SAGA.md](SAGA.md))
 - **CQRS** — mediator tabanlı (common-lib framework, auto-config); feature-based command/query handler'lar ([CQRS.md](CQRS.md))
-- **Senkron çağrı** — OpenFeign (+ Eureka load-balancing)
+- **Senkron çağrı** — OpenFeign (+ Eureka load-balancing + Resilience4j circuit breaker)
 - **Cache** — Redis (okuma yoğun servisler)
 - **API Contract** — Springdoc OpenAPI + Swagger UI
 - **Observability** — Micrometer/OpenTelemetry + Prometheus, Grafana, Tempo, Loki; `traceId` ile metric/trace/log korelasyonu
@@ -262,22 +272,19 @@ Aşağıdaki yol haritası **product-ready** olmak için kalan işleri öncelik 
 - **Rate limiting** — gateway'de Bucket4j + Redis; user (JWT `sub`) / IP başına 100 req/dk; 429 + `Retry-After` + `X-RateLimit-*`. Bkz. §10.
 - **CQRS (mediator)** — `common-lib` framework + auto-config; product-catalog / order / customer feature'ları. Bkz. [CQRS.md](CQRS.md).
 
-### Faz 1 — Domain'i tamamla (boş servisler → CQRS ile)
-Şu an yalnızca `Application.java` iskeleti olan **identity / usage / ticket** servisleri; CQRS
-framework'ü auto-config ile hazır olduğundan ekstra kurulum gerektirmez. Her biri için izlenecek
-yol ([CQRS.md](CQRS.md) §6): Flyway migration + entity/repo → `application/features/<entity>/{command,query,mapper,rule}`
-vertical-slice handler'lar → controller yalnızca `Mediator`'a bağlı, cevap `ApiResponse<T>` → okuma
-yoğunsa `@Cacheable`/yazmada `@CacheEvict`, erişim `@PreAuthorize` ile rol bazlı.
-- **identity-service** — müşteri/kullanıcı profili CRUD (auth Keycloak'ta kalır; burada profil verisi). Opsiyonel: kayıtta Keycloak Admin API ile user provisioning.
-- **usage-service** — CDR/kullanım kaydı: Kafka'dan usage event consume + dönem/abonelik bazlı agregasyon query'leri (billing için veri kaynağı).
-- **ticket-service** — destek talebi CRUD + durum makinesi (`OPEN→IN_PROGRESS→RESOLVED→CLOSED`); CSR rolü.
+### ✅ Faz 1 — Domain'i tamamla (boş servisler → CQRS ile) — TAMAMLANDI
+İskelet halindeki üç servis CQRS vertical-slice yapısıyla dolduruldu (PR #10–#12), izlenen yol
+[CQRS.md](CQRS.md) §6'daki şablondur (Flyway + entity/repo → feature handler'lar → controller yalnızca `Mediator`'a bağlı):
+- ✅ **identity-service** — kullanıcı profili (auth Keycloak'ta kalır; burada profil verisi): me/get/list/update/sync feature'ları.
+- ✅ **usage-service** — CDR/kullanım kaydı: Kafka'dan usage event consume (inbox idempotency) + dönem/abonelik bazlı agregasyon query'leri.
+- ✅ **ticket-service** — destek talebi CRUD + durum makinesi (`OPEN→IN_PROGRESS→RESOLVED→CLOSED`) + yorum/atama; CSR rolü.
 
 > Not: `subscription/payment` (saga participant) ve `billing/notification` (saf Kafka consumer) event-handler
 > yapısındadır; bunlara controller→command/query split'i **uygulanmaz** ([CQRS.md](CQRS.md) §5).
 
 ### Faz 2 — Dayanıklılık & veri tutarlılığı
-- **Resilience4j** — Feign çağrılarına (`order → customer / product-catalog`) circuit breaker + retry + timeout + fallback.
-- **OutboxPoller çoklu-instance güvenliği** — `SELECT ... FOR UPDATE SKIP LOCKED` (order/subscription/payment) → yatay ölçekte çift publish yok.
+- ✅ **Resilience4j** — Feign çağrılarına (`order → customer / product-catalog`) circuit breaker + retry + timeout + fallback; 4xx devreyi saymaz, down/timeout → 503 `SERVICE_UNAVAILABLE`. Bkz. §12.
+- ✅ **OutboxPoller çoklu-instance güvenliği** — `SELECT ... FOR UPDATE SKIP LOCKED` (order/subscription/payment) → yatay ölçekte çift publish yok.
 - **Kafka DLQ + retry** — consumer hatalarında dead-letter topic + backoff; zehirli mesaj izolasyonu.
 - **Saga sertleştirme** — compensation ack'lerini bekleyen iki-fazlı iptal; saga timeout job'ının prod ayarları.
 - **Recurring billing** — aylık bill-run scheduler + `InvoiceGenerated → Payment` (otomatik tahsilat).
