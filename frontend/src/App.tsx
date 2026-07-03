@@ -4,6 +4,8 @@ import { RequireRole } from "./auth/RequireRole";
 import { DashboardPage } from "./pages/DashboardPage";
 import { CustomersPage } from "./pages/customers/CustomersPage";
 import { TicketsPage } from "./pages/tickets/TicketsPage";
+import { TicketDetailPage } from "./pages/tickets/TicketDetailPage";
+import { OrdersPage } from "./pages/orders/OrdersPage";
 import { PageStub } from "./components/PageStub";
 
 export function App() {
@@ -27,7 +29,22 @@ export function App() {
             </RequireRole>
           }
         />
-        <Route path="/orders" element={<PageStub title="Siparisler" sprint="Sprint 3: siparis listesi + saga durum gorunumu (Steps/polling)" />} />
+        <Route
+          path="/tickets/:id"
+          element={
+            <RequireRole roles={["CSR", "ADMIN"]}>
+              <TicketDetailPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/orders"
+          element={
+            <RequireRole roles={["CSR", "ADMIN"]}>
+              <OrdersPage />
+            </RequireRole>
+          }
+        />
         <Route path="/tariffs" element={<PageStub title="Tarifeler" sprint="Sprint 3: katalog listesi + CATALOG_ADMIN tarife olusturma" />} />
         <Route path="/subscriptions" element={<PageStub title="Abonelikler" sprint="Sprint 4: abonelik listesi (musteri filtresi)" />} />
         <Route path="/billing" element={<PageStub title="Faturalar" sprint="Sprint 4: fatura listesi + kalem detayi (BILLING_ADMIN)" />} />

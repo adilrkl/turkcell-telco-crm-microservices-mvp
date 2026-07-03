@@ -1,8 +1,11 @@
 import { useState } from "react";
-import { Card, Select, Space, Table, Tag } from "antd";
+import { Button, Card, Select, Space, Table, Tag } from "antd";
+import { RightOutlined } from "@ant-design/icons";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import dayjs from "dayjs";
 import { api } from "../../lib/axios";
+import { ShortId } from "../../components/ShortId";
 import type { ApiResponse, RestPage, TicketResponse } from "../../api/types";
 
 const STATUS_COLOR: Record<string, string> = {
@@ -19,8 +22,9 @@ const PRIORITY_COLOR: Record<string, string> = {
   URGENT: "red",
 };
 
-/** Destek talepleri (CSR/ADMIN) — server-side sayfalama + durum filtresi. Sprint 2: durum gecisi + yorumlar. */
+/** Destek talepleri (CSR/ADMIN) — server-side sayfalama + durum filtresi; satirdan detaya gecis. */
 export function TicketsPage() {
+  const navigate = useNavigate();
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
   const [status, setStatus] = useState<string | undefined>();
@@ -62,6 +66,10 @@ export function TicketsPage() {
         rowKey="id"
         loading={isFetching}
         dataSource={data?.content}
+        onRow={(record) => ({
+          onClick: () => navigate(`/tickets/${record.id}`),
+          style: { cursor: "pointer" },
+        })}
         pagination={{
           current: page + 1,
           pageSize,
@@ -92,7 +100,23 @@ export function TicketsPage() {
           {
             title: "Atanan",
             dataIndex: "assignedTo",
-            render: (v) => v ?? "-",
+            render: (v: string | null) => <ShortId value={v} />,
+          },
+          {
+            title: "",
+            key: "actions",
+            render: (_, record) => (
+              <Button
+                size="small"
+                icon={<RightOutlined />}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate(`/tickets/${record.id}`);
+                }}
+              >
+                Detay
+              </Button>
+            ),
           },
         ]}
       />
