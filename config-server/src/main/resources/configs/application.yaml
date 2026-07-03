@@ -113,3 +113,24 @@ spring:
       observation-enabled: true
     listener:
       observation-enabled: true
+  # ----------------------------------------------------------------------
+  # Kafka consumer dayanikliligi (Faz 2) - TUM consumer binding'lerine ortak.
+  # Hata -> 3 deneme (uslu backoff 1s->10s), sonra dead-letter topic'e tasinir:
+  #   error.<destination>.<group>  (orn. error.order-events.billing-service-group)
+  # Boylece zehirli mesaj partition'i bloklamaz; offset commit'lenir, mesaj DLQ'ya
+  # gider (kafka-ui'dan incelenebilir). Yalnizca spring-cloud-stream binder'i olan
+  # servislerde etkilidir (billing/notification/usage/order/subscription/payment).
+  # ----------------------------------------------------------------------
+  cloud:
+    stream:
+      default:
+        consumer:
+          max-attempts: 3
+          back-off-initial-interval: 1000
+          back-off-max-interval: 10000
+          back-off-multiplier: 2.0
+      kafka:
+        default:
+          consumer:
+            enable-dlq: true
+            dlq-partitions: 1

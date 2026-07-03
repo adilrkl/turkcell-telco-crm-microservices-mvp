@@ -91,6 +91,7 @@ spring:
   Publish **sync**'tir (`kafka.default.producer.sync: true`): broker ack'i beklenir, hata poller'ın retry yoluna düşer — async'te mesaj sessizce kaybolabilirdi.
 - **Consumer:** `@Bean Consumer<Message<byte[]>>`; payload ham JSON, `eventType` header'ına göre dispatch.
   `processed_events` (inbox) ile idempotency — aynı `eventId` tekrar gelirse atlanır.
+  Hatada **retry + DLQ**: 3 deneme (üslü backoff 1s→10s), tükenince `error.<topic>.<group>` dead-letter topic'ine taşınır — zehirli mesaj partition'ı bloklamaz, offset commit'lenir. Tüm consumer'lara ortak (`application.yaml` → `stream.default.consumer` + `kafka.default.consumer.enable-dlq`).
 - Event kontratları `common-lib`'te (`com.turkcell.commonlib.saga`) — tek kaynak. Bu outbox/inbox temeli üzerine **Saga** kuruldu (bkz. §9).
 
 ### 5. OpenFeign (senkron servisler-arası çağrı)
@@ -285,7 +286,7 @@ Aşağıdaki yol haritası **product-ready** olmak için kalan işleri öncelik 
 ### Faz 2 — Dayanıklılık & veri tutarlılığı
 - ✅ **Resilience4j** — Feign çağrılarına (`order → customer / product-catalog`) circuit breaker + retry + timeout + fallback; 4xx devreyi saymaz, down/timeout → 503 `SERVICE_UNAVAILABLE`. Bkz. §12.
 - ✅ **OutboxPoller çoklu-instance güvenliği** — `SELECT ... FOR UPDATE SKIP LOCKED` (order/subscription/payment) → yatay ölçekte çift publish yok.
-- **Kafka DLQ + retry** — consumer hatalarında dead-letter topic + backoff; zehirli mesaj izolasyonu.
+- ✅ **Kafka DLQ + retry** — consumer hatalarında 3 deneme (üslü backoff) + `error.<topic>.<group>` dead-letter topic; zehirli mesaj izolasyonu (null `eventId`/bozuk payload artık sonsuz redelivery yapmaz). Tüm consumer'lara ortak (`application.yaml`).
 - **Saga sertleştirme** — compensation ack'lerini bekleyen iki-fazlı iptal; saga timeout job'ının prod ayarları.
 - **Recurring billing** — aylık bill-run scheduler + `InvoiceGenerated → Payment` (otomatik tahsilat).
 
