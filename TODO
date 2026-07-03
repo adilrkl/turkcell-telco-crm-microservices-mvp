@@ -1,18 +1,19 @@
-DONE:
-- config-server (native, 8889), Keycloak (tek IdP), Redis cache, Kafka Outbox/Inbox, OpenFeign, BFF
-- Observability: LGTM stack (Grafana/Tempo/Loki/Prometheus) + OTel Collector (OBSERVABILITY.md)
-- Springdoc OpenAPI + Swagger UI (OPENAPI.md)
-- Saga orchestration: order orchestrator + subscription/payment participant, compensation + timeout (SAGA.md)
-- Rate limiting: gateway'de Bucket4j + Redis, user/IP basina 100 req/dk
-- CQRS: mediator common-lib'te auto-config; product-catalog / order / customer (CQRS.md)
-- Faz 1: identity / usage / ticket CQRS domain'leri (PR #10-12)
-- Faz 2 (kismen): Feign'e Resilience4j CB + retry + timeout + fallback (order-service);
-  OutboxPoller coklu-instance (FOR UPDATE SKIP LOCKED, 3 producer'da)
+GUNCEL DEVAM NOKTASI -> README.md "DEVAM NOKTASI" bolumu (tek kaynak orasidir).
 
-NEXT (README "Sonraki Adimlar" roadmap'ine gore):
-- Faz 2 kalan: Kafka DLQ + retry; saga sertlestirme (iki-fazli iptal); recurring billing (bill-run + auto-pay)
-- Faz 3: test & kalite (unit + Testcontainers integration + coverage gate) - su an ~0 kapsam
-- Faz 4: Dockerfile + CI + K8s/Helm
-- Faz 5: guvenlik sertlestirme (secret, TLS, gateway, Keycloak prod)
-- Faz 6: prod runtime (prod profilleri, alerting, yuk testi, MinIO, runbook)
-- Frontend: FRONTEND.md plani; once BFF'e /api/me
+Kisa ozet (2026-07-03, PR #17 sonrasi):
+- Faz 1 tamam (identity/usage/ticket CQRS, PR #10-12)
+- Faz 2 tamam (Resilience4j, SKIP LOCKED, Kafka DLQ+retry, recurring billing + auto-pay,
+  FE-prep API'leri: BFF /api/me + 401 sozlesmesi, subscription/billing/order-list/customer CRUD;
+  saga sertlestirme BILINCLI olarak test guvence agi sonrasina ertelendi)
+- Faz 3 basladi: JaCoCo + Testcontainers 2.x altyapisi, 27 test yesil
+  (ticket state machine, identity rules, billing bill-run matematigi + gercek-Postgres inbox idempotency IT)
+- Frontend scaffold merge edildi (frontend/ monorepo): BFF auth + rol guard,
+  Customers tam CRUD, Tickets listesi; orders/tariffs/billing/subscriptions stub
+
+Siradaki isler (iki paralel track, ayrik dosya agaclari -> conflict yok):
+- Track A (FE) Sprint 2: ticket durum gecisi + atama + yorumlar UI; orders sayfasi
+  (siparis formu + saga durumu: AntD Steps + polling)
+- Track B (BE): saga entegrasyon testleri (Kafka'li Testcontainers, happy + _FAIL compensation);
+  inbox-idempotency IT kalibini diger consumer'lara yay -> sonra saga sertlestirme -> sonra CI (Faz 4)
+
+Detay tablolar ve hizli baslatma komutlari: README.md "DEVAM NOKTASI"

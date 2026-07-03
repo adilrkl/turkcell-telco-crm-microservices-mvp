@@ -276,8 +276,35 @@ telco-crm-platform/
 
 Temel mimari oturdu: config, service discovery, gateway + BFF, Keycloak güvenlik, event-driven
 Outbox/Inbox, Saga orchestration, mediator-tabanlı CQRS, rate limiting ve observability entegre.
-Aşağıdaki yol haritası **product-ready** olmak için kalan işleri öncelik sırasıyla listeler
-(**frontend hariç** — o kapsam ayrı: [FRONTEND.md](FRONTEND.md)).
+Frontend de artık bu repodadır (monorepo, `frontend/`); mimari kararları için [FRONTEND.md](FRONTEND.md).
+
+### 📍 DEVAM NOKTASI (son güncelleme: 2026-07-03, PR #17 sonrası)
+
+**Durum:** Faz 1 ✅ · Faz 2 ✅ (tek istisna: saga sertleştirme → bilinçli olarak test güvence ağı sonrasına ertelendi) ·
+Faz 3 başladı (altyapı + ilk 27 test yeşil) · **FE scaffold merge edildi** (auth + Customers tam + Tickets listesi çalışıyor).
+
+**Çalışma düzeni:** İki paralel track, ayrık dosya ağaçları → iki PR aynı anda açık olabilir, conflict çıkmaz.
+Kural: [FRONTEND.md](FRONTEND.md) FE track'ine, bu README'nin yol haritası backend track'ine aittir.
+
+| Sıradaki iş | Track A — Frontend (`frontend/`) | Track B — Backend |
+|---|---|---|
+| **1 (buradan devam)** | **Sprint 2:** Tickets sayfasına durum geçişi (PATCH `/status`), atama, yorumlar (detay görünümü); Orders sayfası: sipariş oluşturma formu + saga durum izleme (AntD `Steps` + TanStack `refetchInterval` polling, terminal durumda durdur) | **Saga entegrasyon testleri:** Kafka'lı Testcontainers ile happy-path (`FULFILLED`) + `_FAIL` tarife ile compensation (`CANCELLED` + refund + MSISDN release); inbox-idempotency kalıbını (billing'deki `OrderEventHandlerIntegrationTest`) notification/usage/payment/subscription consumer'larına yay |
+| 2 | Sprint 3: Tariffs sayfası (liste + `CATALOG_ADMIN` create); `npm run generate:api` ile üretilen tam tipli client'a geçiş | **Saga sertleştirme** (artık güvence ağıyla): compensation ack bekleyen iki-fazlı iptal + timeout prod ayarları |
+| 3 | Sprint 4: Billing (fatura listesi + kalem detayı) ve Subscriptions sayfaları | **Faz 4 başlangıcı:** Dockerfile (servis başına) + GitHub Actions CI (`mvn verify` + Testcontainers + FE build) — PR gate |
+
+**Açık kararlar (bloklamıyor):** CUSTOMER self-servisi için kullanıcı↔müşteri bağlantısı (Keycloak `sub` ≠ `customerId`;
+ilk FE sürümü CSR/ADMIN odaklı — [FRONTEND.md](FRONTEND.md) §13) · JaCoCo coverage eşiği (kapsam büyüyünce) · Faz 5/6 kalemleri.
+
+**Kaldığın yerden hızlı başlatma:**
+```bash
+docker compose up -d                      # altyapı (keycloak realm değiştiyse: --force-recreate keycloak)
+./mvnw clean install -DskipTests          # JAVA_HOME = JDK 21 olmalı
+# servisleri sırayla başlat (bkz. "Başlangıç" bölümü) — 14 servis
+cd frontend && npm install && npm run dev # http://localhost:5173 → "Giriş yap" → csruser/test12345
+./mvnw test                               # 27 test (Testcontainers IT dahil; Docker açık olmalı)
+```
+> Windows notu: Docker Desktop'ta Testcontainers "Docker bulunamadı" derse `~/.testcontainers.properties`
+> içine `docker.host=npipe:////./pipe/dockerDesktopLinuxEngine` yaz (Linux/CI'da gerekmez).
 
 ### ✅ Tamamlananlar
 - **Saga orchestration** — order orchestrator (`saga_states`) + reserve→ödeme→aktivasyon + compensation + timeout. Bkz. [SAGA.md](SAGA.md).
