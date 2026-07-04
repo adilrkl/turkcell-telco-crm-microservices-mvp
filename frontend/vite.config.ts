@@ -8,11 +8,16 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
+    // KRITIK (oauth2/login/logout icin changeOrigin=false): BFF, oauth2Login redirect_uri'sini
+    // ve logout post_logout_redirect_uri'sini gelen HOST header'indan uretir. changeOrigin:true
+    // Host'u :9000 yapinca Keycloak login sonrasi tarayiciyi :9000'e dondurur -> orada SPA yok,
+    // Whitelabel 404 gorunur. Host'u :5173 birakinca redirect_uri :5173 olur (Keycloak client'inda
+    // :5173 zaten kayitli, FRONTEND.md §6) ve akis SPA'ya geri doner. /api redirect uretmez (401).
     proxy: {
       "/api": { target: "http://localhost:9000", changeOrigin: true },
-      "/oauth2": { target: "http://localhost:9000", changeOrigin: true },
-      "/login": { target: "http://localhost:9000", changeOrigin: true },
-      "/logout": { target: "http://localhost:9000", changeOrigin: true },
+      "/oauth2": { target: "http://localhost:9000", changeOrigin: false },
+      "/login": { target: "http://localhost:9000", changeOrigin: false },
+      "/logout": { target: "http://localhost:9000", changeOrigin: false },
     },
   },
   test: {
