@@ -1,19 +1,22 @@
 GUNCEL DEVAM NOKTASI -> README.md "DEVAM NOKTASI" bolumu (tek kaynak orasidir).
 
-Kisa ozet (2026-07-03, PR #17 sonrasi):
-- Faz 1 tamam (identity/usage/ticket CQRS, PR #10-12)
-- Faz 2 tamam (Resilience4j, SKIP LOCKED, Kafka DLQ+retry, recurring billing + auto-pay,
-  FE-prep API'leri: BFF /api/me + 401 sozlesmesi, subscription/billing/order-list/customer CRUD;
-  saga sertlestirme BILINCLI olarak test guvence agi sonrasina ertelendi)
-- Faz 3 basladi: JaCoCo + Testcontainers 2.x altyapisi, 27 test yesil
-  (ticket state machine, identity rules, billing bill-run matematigi + gercek-Postgres inbox idempotency IT)
-- Frontend scaffold merge edildi (frontend/ monorepo): BFF auth + rol guard,
-  Customers tam CRUD, Tickets listesi; orders/tariffs/billing/subscriptions stub
+Kisa ozet (2026-07-04, Sprint-2 + saga-IT branch'leri sonrasi):
+- Faz 1 + Faz 2 tamam
+- Faz 3: saga entegrasyon testleri TAMAM (OrderSagaIntegrationTest: gercek Kafka+Postgres,
+  happy/compensation/timeout) + inbox-idempotency kalibi 4 consumer'a yayildi
+  (subscription/payment/notification/usage) -> toplam 45 test yesil (27 + 18 yeni)
+- FE Sprint 2 TAMAM: /tickets/:id detay (durum gecisi + atama + yorumlar),
+  /orders sayfasi (siparis formu + AntD Steps saga izleme, terminal durumda duran polling)
 
-Siradaki isler (iki paralel track, ayrik dosya agaclari -> conflict yok):
-- Track A (FE) Sprint 2: ticket durum gecisi + atama + yorumlar UI; orders sayfasi
-  (siparis formu + saga durumu: AntD Steps + polling)
-- Track B (BE): saga entegrasyon testleri (Kafka'li Testcontainers, happy + _FAIL compensation);
-  inbox-idempotency IT kalibini diger consumer'lara yay -> sonra saga sertlestirme -> sonra CI (Faz 4)
+MERGE BEKLEYEN (ikisi ayrik dosya agaclari, sira farketmez):
+- feat/saga-integration-tests  (Track B: 5 pom + 5 yeni IT sinifi)
+- feat/frontend-sprint2        (Track A: yalnizca frontend/)
+
+Siradaki isler (merge'lerden sonra):
+- Track A (FE) Sprint 3: Tariffs sayfasi (liste + CATALOG_ADMIN create);
+  npm run generate:api ile tam tipli client'a gecis
+- Track B (BE): saga sertlestirme (compensation ack bekleyen iki-fazli iptal +
+  timeout prod ayarlari) -> OrderSagaIntegrationTest regresyon agi olarak kullanilir
+  -> sonra Faz 4 (Dockerfile + GitHub Actions CI)
 
 Detay tablolar ve hizli baslatma komutlari: README.md "DEVAM NOKTASI"
