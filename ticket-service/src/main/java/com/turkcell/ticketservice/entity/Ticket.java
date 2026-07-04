@@ -25,6 +25,7 @@ public class Ticket {
     private String category;
     private String priority = "MEDIUM";
     private String status = "OPEN";
+    private String team;          // acilista kategoriye gore yonlendirilen ekip kuyrugu (G7)
     private UUID assignedTo;      // atanan CSR'in Keycloak sub'i (UUID)
     private Instant slaDueAt;
 
@@ -46,6 +47,8 @@ public class Ticket {
     public void setPriority(String priority) { this.priority = priority; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+    public String getTeam() { return team; }
+    public void setTeam(String team) { this.team = team; }
     public UUID getAssignedTo() { return assignedTo; }
     public void setAssignedTo(UUID assignedTo) { this.assignedTo = assignedTo; }
     public Instant getSlaDueAt() { return slaDueAt; }

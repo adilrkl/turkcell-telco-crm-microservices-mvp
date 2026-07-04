@@ -1,5 +1,6 @@
 package com.turkcell.ticketservice.application.features.ticket.mapper;
 
+import java.time.Instant;
 import java.util.List;
 
 import org.springframework.stereotype.Component;
@@ -15,15 +16,17 @@ import com.turkcell.ticketservice.entity.TicketComment;
 @Component
 public class TicketMapper {
 
-    /** Yeni OPEN talep olusturur (status/priority varsayilani entity'de). */
-    public Ticket toNewTicket(CreateTicketCommand command) {
+    /**
+     * Yeni OPEN talep olusturur. priority/team/slaDueAt acilista otomasyonca hesaplanir
+     * (G7); handler bunlari cozup buraya verir.
+     */
+    public Ticket toNewTicket(CreateTicketCommand command, String priority, String team, Instant slaDueAt) {
         Ticket ticket = new Ticket();
         ticket.setCustomerId(command.customerId());
         ticket.setCategory(command.category());
-        if (command.priority() != null) {
-            ticket.setPriority(command.priority());
-        }
-        ticket.setSlaDueAt(command.slaDueAt());
+        ticket.setPriority(priority);
+        ticket.setTeam(team);
+        ticket.setSlaDueAt(slaDueAt);
         return ticket;
     }
 
@@ -34,6 +37,7 @@ public class TicketMapper {
                 t.getCategory(),
                 t.getPriority(),
                 t.getStatus(),
+                t.getTeam(),
                 t.getAssignedTo(),
                 t.getSlaDueAt(),
                 t.getCreatedAt(),

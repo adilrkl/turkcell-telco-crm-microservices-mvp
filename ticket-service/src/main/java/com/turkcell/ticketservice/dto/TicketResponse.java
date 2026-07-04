@@ -9,6 +9,7 @@ public record TicketResponse(
         String category,
         String priority,
         String status,
+        String team,
         UUID assignedTo,
         Instant slaDueAt,
         Instant createdAt,

@@ -1,14 +1,16 @@
 GUNCEL DEVAM NOKTASI -> README.md "DEVAM NOKTASI" + "Faz 3.5" bolumleri (tek kaynak orasidir).
 
-Kisa ozet (2026-07-04, G1-G6 sonrasi):
-- Faz 1 + Faz 2 tamam; 84 test yesil (Kafka'li saga IT + inbox-idempotency + kota/KYC/lifecycle/iptal/PDF)
+Kisa ozet (2026-07-04, G1-G7 sonrasi):
+- Faz 1 + Faz 2 tamam; 89 test yesil (Kafka'li saga IT + inbox-idempotency + kota/KYC/lifecycle/iptal/PDF/ticket)
 - FE Sprint 3 merge edildi (PR #21); Track A siradaki is: Sprint 4 (Billing + Subscriptions sayfalari)
 - Faz 3.5: G1 kota (PR #23), G2 fatura bildirim (PR #24), G3 KYC (PR #25), G4 yasam dongusu (PR #27),
-  G5 siparis iptali (PR #28), G6 fatura PDF TAMAM
+  G5 siparis iptali (PR #28), G6 fatura PDF (PR #29), G7 ticket otomasyonu TAMAM
 - DIKKAT (G3 davranis degisikligi): yeni musteri PENDING dogar; siparis icin belge + ADMIN kyc/approve gerekir
 - G5 notu: POST /api/orders/{id}/cancel (CSR/ADMIN); yalniz terminal-oncesi; adima gore release/refund
-- G6 notu: GET /api/billing/invoices/{id}/pdf (OpenPDF, istek aninda uretim, saklama yok);
-  pdf_ref + e-posta eki MinIO ile Faz 6'da; InvoiceGenerated e-postasi (G2) zaten var
+- G6 notu: GET /api/billing/invoices/{id}/pdf (OpenPDF, istek aninda uretim, saklama yok)
+- G7 notu: POST /api/tickets acilista SLA (oncelik) + team (kategori) otomatik; TicketOpened -> ticket-events
+  -> notification TICKET_OPENED SMS. slaDueAt artik client'tan alinmiyor. ticket-service'e outbox eklendi.
+- KARAR (nihai): outbox common-lib'e CIKARILMADI; her servis kendi kopyasini tasir. Bir daha sorma.
 - Saga sertlestirme BACKLOG'da (docx gereksinimi degil; FR-10/12 karsilandi, IT'li)
 
 ONCELIK SIRASI — Faz 3.5 docx bosluklari (detay: README "Faz 3.5" tablosu):
@@ -17,10 +19,10 @@ ONCELIK SIRASI — Faz 3.5 docx bosluklari (detay: README "Faz 3.5" tablosu):
   G3  KYC mini akisi                       TAMAM (PR #25)
   G4  Abonelik suspend/reactivate/terminate TAMAM (PR #27)
   G5  Manuel siparis iptali                TAMAM (PR #28)
-  G6  Fatura PDF                           TAMAM
-  G7  Ticket otomasyonu (TicketOpened->notification, slaDueAt hesabi) (FR-32/33)  <- BURADAN DEVAM
-      (G7'de ONCE SOR: outbox'i common-lib'e cikarayim mi? — 7. kopya yerine)
-  G8  Odeme dunning retry 24/72/168 saat (FR-27)
+  G6  Fatura PDF                           TAMAM (PR #29)
+  G7  Ticket otomasyonu                    TAMAM
+  G8  Odeme dunning retry 24/72/168 saat (FR-27)  <- BURADAN DEVAM
+      (demo icin sureler config'le kisaltilabilir)
   G9  Kucukler: TCKN/VKN dogrulama, soft-delete, opt-in/out
 
 Paralel/sonrasi:
@@ -28,7 +30,8 @@ Paralel/sonrasi:
   GET /api/usage/quota, KYC onay/red + adres/belge endpoint'leri,
   G4 abonelik aksiyonlari POST /api/subscriptions/{id}/suspend|reactivate|terminate,
   G5 siparis iptali POST /api/orders/{id}/cancel,
-  G6 fatura PDF GET /api/billing/invoices/{id}/pdf
+  G6 fatura PDF GET /api/billing/invoices/{id}/pdf,
+  G7 ticket: POST /api/tickets (SLA/team otomatik), GET/liste + durum/atama/yorum mevcut
 - Faz 4: Dockerfile + GitHub Actions CI test-gate (Faz 3.5 ile paralel yurutulebilir);
   typed-client (generate:api) karari CI ile birlikte
 

@@ -4,3 +4,15 @@ spring:
     username: ${DB_USER:ticket_user}
     password: ${DB_PASS:secret}
     driver-class-name: org.postgresql.Driver
+  # --- G7: TicketOpened yayini. ticket-events'e sadece StreamBridge (dinamik destination)
+  #     ile publish ediliyor; consume yok, o yuzden function.definition tanimlamiyoruz. ---
+  cloud:
+    stream:
+      kafka:
+        binder:
+          brokers: ${KAFKA_BROKERS:localhost:9092}
+        # Outbox publish sync olmali: send() broker ack'ini bekler, hata poller'in
+        # retry yoluna duser. Async'te send true donup mesaj buffer'da kaybolabilir.
+        default:
+          producer:
+            sync: true

@@ -49,7 +49,7 @@ public class TicketController {
     @PreAuthorize("hasAnyRole('CSR','ADMIN')")
     public ApiResponse<TicketResponse> create(@Valid @RequestBody CreateTicketRequest request) {
         CreateTicketCommand command = new CreateTicketCommand(
-                request.customerId(), request.category(), request.priority(), request.slaDueAt());
+                request.customerId(), request.category(), request.priority());
         return ApiResponse.ok(mediator.send(command), "Talep olusturuldu");
     }
 

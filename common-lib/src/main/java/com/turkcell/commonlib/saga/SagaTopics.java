@@ -13,6 +13,7 @@ package com.turkcell.commonlib.saga;
  *   <li>{@link #CUSTOMER_EVENTS}: customer -> dis dunyaya musteri yasam dongusu event'leri (KYC).</li>
  *   <li>{@link #SUBSCRIPTION_EVENTS}: subscription -> dis dunyaya abonelik yasam dongusu event'leri
  *       (suspend/reactivate/terminate).</li>
+ *   <li>{@link #TICKET_EVENTS}: ticket -> dis dunyaya destek talebi event'leri (TicketOpened).</li>
  * </ul>
  */
 public final class SagaTopics {
@@ -28,4 +29,5 @@ public final class SagaTopics {
     public static final String QUOTA_EVENTS = "quota-events";
     public static final String CUSTOMER_EVENTS = "customer-events";
     public static final String SUBSCRIPTION_EVENTS = "subscription-events";
+    public static final String TICKET_EVENTS = "ticket-events";
 }
