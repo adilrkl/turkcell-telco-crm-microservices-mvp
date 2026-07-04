@@ -1,5 +1,7 @@
 package com.turkcell.customerservice.application.features.customer.mapper;
 
+import java.time.Instant;
+
 import org.springframework.stereotype.Component;
 
 import com.turkcell.customerservice.application.features.customer.command.create.CreateCustomerCommand;
@@ -11,7 +13,11 @@ import com.turkcell.customerservice.entity.Customer;
 @Component
 public class CustomerMapper {
 
-    /** Komuttan yeni ACTIVE musteri olusturur. */
+    /**
+     * Komuttan yeni musteri olusturur. G3 (KYC mini akisi) itibariyla yeni musteri
+     * PENDING dogar; belge yukleme + KYC onayi (ADMIN) ile ACTIVE olur. Order akisi
+     * ACTIVE sartini aradigi icin onay oncesi siparis acilamaz (docx senaryo 14.1).
+     */
     public Customer toCustomer(CreateCustomerCommand command) {
         Customer c = new Customer();
         c.setType(command.type());
@@ -19,7 +25,10 @@ public class CustomerMapper {
         c.setLastName(command.lastName());
         c.setIdentityNumber(command.identityNumber());
         c.setDateOfBirth(command.dateOfBirth());
-        c.setStatus("ACTIVE");
+        c.setStatus("PENDING");
+        // created_at NOT NULL: Hibernate tum kolonlari INSERT ettigi icin DB DEFAULT'u
+        // devreye girmez; uygulama tarafinda damgalanir.
+        c.setCreatedAt(Instant.now());
         return c;
     }
 
