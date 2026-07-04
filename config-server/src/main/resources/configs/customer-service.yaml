@@ -8,3 +8,15 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+  # --- Producer: OutboxPoller (CustomerKYCApproved -> customer-events, StreamBridge
+  #     dinamik) -> sync publish zorunlu. Consumer binding'i yok.
+  cloud:
+    stream:
+      kafka:
+        binder:
+          brokers: ${KAFKA_BROKERS:localhost:9092}
+        # Outbox publish sync olmali: send() broker ack'ini bekler, hata poller'in
+        # retry yoluna duser. Async'te send true donup mesaj buffer'da kaybolabilir.
+        default:
+          producer:
+            sync: true

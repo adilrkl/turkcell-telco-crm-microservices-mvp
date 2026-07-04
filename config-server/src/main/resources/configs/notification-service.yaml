@@ -6,11 +6,11 @@ spring:
     driver-class-name: org.postgresql.Driver
   # --- Tuketiciler: order-events (OrderConfirmed/OrderCancelled -> bildirim) +
   #     quota-events (QuotaThresholdReached -> %80/%100 esik SMS'i) +
-  #     invoice-events (InvoiceGenerated/InvoicePaid/InvoicePaymentFailed -> EMAIL).
-  #     Inbox idempotent.
+  #     invoice-events (InvoiceGenerated/InvoicePaid/InvoicePaymentFailed -> EMAIL) +
+  #     customer-events (CustomerKYCApproved -> hesap aktif SMS'i). Inbox idempotent.
   cloud:
     function:
-      definition: consumeOrderEvents;consumeQuotaEvents;consumeInvoiceEvents
+      definition: consumeOrderEvents;consumeQuotaEvents;consumeInvoiceEvents;consumeCustomerEvents
     stream:
       bindings:
         consumeOrderEvents-in-0:
@@ -21,6 +21,9 @@ spring:
           group: notification-service-group
         consumeInvoiceEvents-in-0:
           destination: invoice-events
+          group: notification-service-group
+        consumeCustomerEvents-in-0:
+          destination: customer-events
           group: notification-service-group
       kafka:
         binder:
