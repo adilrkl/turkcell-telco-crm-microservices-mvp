@@ -278,11 +278,12 @@ Temel mimari oturdu: config, service discovery, gateway + BFF, Keycloak güvenli
 Outbox/Inbox, Saga orchestration, mediator-tabanlı CQRS, rate limiting ve observability entegre.
 Frontend de artık bu repodadır (monorepo, `frontend/`); mimari kararları için [FRONTEND.md](FRONTEND.md).
 
-### 📍 DEVAM NOKTASI (son güncelleme: 2026-07-04, G9 küçükler sonrası — **Faz 3.5 TAMAMLANDI**)
+### 📍 DEVAM NOKTASI (son güncelleme: 2026-07-05, FE Sprint 4 sonrası — **Faz 3.5 TAMAMLANDI**)
 
 **Durum:** Faz 1 ✅ · Faz 2 ✅ · Faz 3 ilerliyor · **Faz 3.5: G1–G9 ✅ (TAMAM)** (kota zinciri +
-fatura bildirimleri + KYC + abonelik yaşam döngüsü + manuel sipariş iptali + fatura PDF + ticket otomasyonu + dunning retry + TCKN/VKN & soft-delete & opt-in/out; 100 test yeşil) · FE Sprint 3 merge edildi (PR #21) ·
+fatura bildirimleri + KYC + abonelik yaşam döngüsü + manuel sipariş iptali + fatura PDF + ticket otomasyonu + dunning retry + TCKN/VKN & soft-delete & opt-in/out; 100 test yeşil) · FE Sprint 3 (PR #21) + **FE Sprint 4 ✅** (Billing + Subscriptions sayfaları; G4/G6 UI bağlı; 58 FE test yeşil) merge edildi ·
 Sıradaki backend işi: **Faz 4** (Dockerfile + GitHub Actions CI test-gate) — artık docx genişlik boşlukları kapandı.
+> ℹ️ Dev notu (FE Sprint 4): SPA `:5173`'ten login → Keycloak → SPA akışı için `vite.config.ts` proxy'de `/oauth2 /login /logout` **`changeOrigin: false`** olmalı (BFF `redirect_uri`'yi Host'tan üretir; `:9000` olursa login sonrası Whitelabel 404'e düşer). Keycloak `telco-bff` client'ında `http://localhost:5173/*` redirect kayıtlı.
 > ⚠️ Davranış değişikliği (G9): müşteri oluşturmada **TCKN/VKN artık zorunlu ve algoritmik doğrulanıyor** (INDIVIDUAL→TCKN, CORPORATE→VKN; geçersizse 422). Demo seed müşterileri SQL ile eklendiği için etkilenmez.
 > ℹ️ Karar (G7): outbox **common-lib'e çıkarılmadı** — servis bağımsızlığı korunuyor, her servis kendi kopyasını taşır (nihai; bir daha sorulmayacak).
 > ⚠️ Davranış değişikliği (G3): **yeni müşteri artık `PENDING` doğar**; sipariş verebilmesi için belge
@@ -299,8 +300,9 @@ Kural: [FRONTEND.md](FRONTEND.md) FE track'ine, bu README'nin yol haritası back
 
 | Sıradaki iş | Track A — Frontend (`frontend/`) | Track B — Backend |
 |---|---|---|
-| **1 (buradan devam)** | Sprint 4: Billing (fatura listesi + kalem detayı) ve Subscriptions sayfaları; G-işleri API çıkardıkça UI bağlanır (G1 kota kartı hazır: `GET /api/usage/quota`; G3 KYC onay/red butonları + belge listesi hazır; G4 abonelik aksiyonları hazır: `POST /api/subscriptions/{id}/suspend\|reactivate\|terminate`; G5 sipariş iptal butonu hazır: `POST /api/orders/{id}/cancel`; G6 fatura PDF indirme hazır: `GET /api/billing/invoices/{id}/pdf`; G7 talep açılışta SLA+ekip otomatik, açılış SMS'i gider; G8 dunning arka planda, fatura PAYMENT_FAILED→PAID otomatik döner; G9 müşteri sil `DELETE /api/customers/{id}` + tercih `PUT /api/notifications/preferences/{userId}`) | **Faz 3.5:** **G1–G9 ✅ TAMAM** → sıradaki **Faz 4** (CI test-gate; typed-client) |
-| 2 | Typed-client (`generate:api`) geçişi — Faz 4 CI kararıyla birlikte | **Faz 4:** Dockerfile + GitHub Actions CI (test gate) — Faz 3.5 ile paralel yürüyebilir |
+| **1 ✅ (Sprint 4 TAMAM)** | **Sprint 4 ✅** — Billing (fatura listesi + kalem detayı drawer + PDF indirme **G6** `GET /api/billing/invoices/{id}/pdf`) ve Subscriptions (liste + yaşam döngüsü **G4** suspend/reactivate/terminate) sayfaları; `RequireRole` ile rol-bazlı bağlı; 58 FE test yeşil | **Faz 3.5:** **G1–G9 ✅ TAMAM** → sıradaki **Faz 4** (CI test-gate; typed-client) |
+| **2 (buradan devam)** | Sprint 5: kalan G-UI bağlama — G1 kota kartı (`GET /api/usage/quota`), G3 KYC onay/red butonları + belge listesi, G5 sipariş iptal butonu (`POST /api/orders/{id}/cancel`), G9 müşteri sil (`DELETE /api/customers/{id}`) + tercih (`PUT /api/notifications/preferences/{userId}`) — hepsi backend'de hazır | **Faz 4:** Dockerfile + GitHub Actions CI (test gate) — Faz 3.5 ile paralel yürüyebilir |
+| 3 | Typed-client (`generate:api`) geçişi — Faz 4 CI kararıyla birlikte | — |
 
 **Açık kararlar (bloklamıyor):** CUSTOMER self-servisi için kullanıcı↔müşteri bağlantısı (Keycloak `sub` ≠ `customerId`;
 ilk FE sürümü CSR/ADMIN odaklı — [FRONTEND.md](FRONTEND.md) §13) · JaCoCo coverage eşiği (kapsam büyüyünce) ·
