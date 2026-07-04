@@ -278,11 +278,11 @@ Temel mimari oturdu: config, service discovery, gateway + BFF, Keycloak güvenli
 Outbox/Inbox, Saga orchestration, mediator-tabanlı CQRS, rate limiting ve observability entegre.
 Frontend de artık bu repodadır (monorepo, `frontend/`); mimari kararları için [FRONTEND.md](FRONTEND.md).
 
-### 📍 DEVAM NOKTASI (son güncelleme: 2026-07-04, G7 ticket otomasyonu sonrası)
+### 📍 DEVAM NOKTASI (son güncelleme: 2026-07-04, G8 ödeme dunning retry sonrası)
 
-**Durum:** Faz 1 ✅ · Faz 2 ✅ · Faz 3 ilerliyor · **Faz 3.5: G1 ✅ G2 ✅ G3 ✅ G4 ✅ G5 ✅ G6 ✅ G7 ✅** (kota zinciri +
-fatura bildirimleri + KYC + abonelik yaşam döngüsü + manuel sipariş iptali + fatura PDF + ticket otomasyonu; 89 test yeşil) · FE Sprint 3 merge edildi (PR #21) ·
-Sıradaki backend işi: **G8 ödeme dunning retry** (typed-client geçişi bilinçli olarak Faz 4 CI kararına ertelendi).
+**Durum:** Faz 1 ✅ · Faz 2 ✅ · Faz 3 ilerliyor · **Faz 3.5: G1 ✅ G2 ✅ G3 ✅ G4 ✅ G5 ✅ G6 ✅ G7 ✅ G8 ✅** (kota zinciri +
+fatura bildirimleri + KYC + abonelik yaşam döngüsü + manuel sipariş iptali + fatura PDF + ticket otomasyonu + dunning retry; 92 test yeşil) · FE Sprint 3 merge edildi (PR #21) ·
+Sıradaki backend işi: **G9 küçükler** (TCKN/VKN doğrulama, soft-delete, opt-in/out) — Faz 3.5'in son kalemi.
 > ℹ️ Karar (G7): outbox **common-lib'e çıkarılmadı** — servis bağımsızlığı korunuyor, her servis kendi kopyasını taşır (nihai; bir daha sorulmayacak).
 > ⚠️ Davranış değişikliği (G3): **yeni müşteri artık `PENDING` doğar**; sipariş verebilmesi için belge
 > yükleme + `POST /api/customers/{id}/kyc/approve` (ADMIN) gerekir. Demo seed müşterisi ACTIVE kalır.
@@ -298,7 +298,7 @@ Kural: [FRONTEND.md](FRONTEND.md) FE track'ine, bu README'nin yol haritası back
 
 | Sıradaki iş | Track A — Frontend (`frontend/`) | Track B — Backend |
 |---|---|---|
-| **1 (buradan devam)** | Sprint 4: Billing (fatura listesi + kalem detayı) ve Subscriptions sayfaları; G-işleri API çıkardıkça UI bağlanır (G1 kota kartı hazır: `GET /api/usage/quota`; G3 KYC onay/red butonları + belge listesi hazır; G4 abonelik aksiyonları hazır: `POST /api/subscriptions/{id}/suspend\|reactivate\|terminate`; G5 sipariş iptal butonu hazır: `POST /api/orders/{id}/cancel`; G6 fatura PDF indirme hazır: `GET /api/billing/invoices/{id}/pdf`; G7 talep açılışta SLA+ekip otomatik, açılış SMS'i gider) | **Faz 3.5:** G1 ✅ G2 ✅ G3 ✅ G4 ✅ G5 ✅ G6 ✅ G7 ✅ → sıradaki **G8 ödeme dunning retry** (tablo aşağıda) |
+| **1 (buradan devam)** | Sprint 4: Billing (fatura listesi + kalem detayı) ve Subscriptions sayfaları; G-işleri API çıkardıkça UI bağlanır (G1 kota kartı hazır: `GET /api/usage/quota`; G3 KYC onay/red butonları + belge listesi hazır; G4 abonelik aksiyonları hazır: `POST /api/subscriptions/{id}/suspend\|reactivate\|terminate`; G5 sipariş iptal butonu hazır: `POST /api/orders/{id}/cancel`; G6 fatura PDF indirme hazır: `GET /api/billing/invoices/{id}/pdf`; G7 talep açılışta SLA+ekip otomatik, açılış SMS'i gider; G8 dunning arka planda, fatura PAYMENT_FAILED→PAID otomatik döner) | **Faz 3.5:** G1 ✅ G2 ✅ G3 ✅ G4 ✅ G5 ✅ G6 ✅ G7 ✅ G8 ✅ → sıradaki **G9 küçükler** (tablo aşağıda) |
 | 2 | Typed-client (`generate:api`) geçişi — Faz 4 CI kararıyla birlikte | **Faz 4:** Dockerfile + GitHub Actions CI (test gate) — Faz 3.5 ile paralel yürüyebilir |
 
 **Açık kararlar (bloklamıyor):** CUSTOMER self-servisi için kullanıcı↔müşteri bağlantısı (Keycloak `sub` ≠ `customerId`;
@@ -311,7 +311,7 @@ docker compose up -d                      # altyapı (keycloak realm değiştiys
 ./mvnw clean install -DskipTests          # JAVA_HOME = JDK 21 olmalı
 # servisleri sırayla başlat (bkz. "Başlangıç" bölümü) — 14 servis
 cd frontend && npm install && npm run dev # http://localhost:5173 → "Giriş yap" → csruser/test12345
-./mvnw test                               # 89 test (Kafka'lı saga IT dahil; Docker açık olmalı)
+./mvnw test                               # 92 test (Kafka'lı saga IT dahil; Docker açık olmalı)
 ```
 > Windows notu: Docker Desktop'ta Testcontainers "Docker bulunamadı" derse `~/.testcontainers.properties`
 > içine `docker.host=npipe:////./pipe/dockerDesktopLinuxEngine` yaz (Linux/CI'da gerekmez).
@@ -330,7 +330,7 @@ MVP analiz dokümanıyla yapılan kıyasın (2026-07-04) çıktısı. Sıra = ö
 | **G5 ✅** | **Manuel sipariş iptali** — TAMAMLANDI | §8.3 | `POST /api/orders/{id}/cancel` (CSR/ADMIN; gövde opsiyonel `{"reason":"..."}`) — yalnız terminal-öncesi durumlar (PENDING_PAYMENT/PAID); mevcut compensation altyapısı yeniden kullanılır: ulaşılan saga adımına göre `ReleaseMsisdn` / `RefundPayment`+`ReleaseMsisdn` (timeout süpürücüsüyle aynı kurallar, ortak yardımcıya çıkarıldı); iptal + compensation komutları + `OrderCancelled` tek transaction'da outbox'a yazılır → notification mevcut consumer'la iptal bildirimi atar; FULFILLED/CANCELLED → 409 `ORDER_INVALID`. CSR/ADMIN kısıtının gerekçesi list endpoint'iyle aynı (kullanıcı↔müşteri bağlantısı yok). Not: uçan reply'lı adım için iki-fazlı iptal (compensation ack bekleme) bilinçli olarak backlog'daki saga sertleştirmeye bırakıldı |
 | **G6 ✅** | **Fatura PDF** — TAMAMLANDI | FR-23 | `GET /api/billing/invoices/{id}/pdf` (BILLING_ADMIN/CSR/ADMIN) — OpenPDF ile istek anında bellekte üretilir, `application/pdf` + attachment döner (başlık/kalemler/KDV/genel toplam; para birimi bill-cycle'dan, yoksa TRY); saklama yok → `invoices.pdf_ref` MinIO ile Faz 6'da dolacak. Bilinçli sapma: docx'in "PDF notification'a gönderilir" kısmı e-posta eki gerektirir → object storage ile Faz 6'ya; `InvoiceGenerated` e-postası (G2) zaten kesim bilgisini taşıyor |
 | **G7 ✅** | **Ticket otomasyonu** — TAMAMLANDI | FR-32/33 | `POST /api/tickets` artık açılışta otomasyon uygular (`TicketOpeningPolicy`): önceliğe göre `slaDueAt` (URGENT 4s / HIGH 8s / MEDIUM 24s / LOW 72s; `slaDueAt` artık client'tan alınmaz) + kategoriye göre ekip yönlendirmesi (`team`: BILLING/PAYMENT→BILLING_TEAM, TECHNICAL/NETWORK→TECH_TEAM, SALES→SALES_TEAM, diğer→GENERAL_TEAM — basit auto-assign; bireysel CSR ataması mevcut `assigned_to`+assign endpoint'iyle elle sürer). `TicketOpened` domain event'i (event-carried state: category/priority/team/slaDueAt) transactional outbox → yeni `ticket-events` topic → notification `TICKET_OPENED` SMS'i atar (V8, inbox idempotent). ticket-service'e outbox altyapısı eklendi (V4: `team` kolonu + `outbox_events`; **common-lib'e çıkarılmadı** — bağımsızlık kararı). Publish-only servis (consume yok) |
-| **G8** | Ödeme dunning retry | FR-27 | başarısız fatura ödemeleri için 24/72/168 saat retry scheduler'ı (demo için sürelerin config'le kısaltılması) |
+| **G8 ✅** | **Ödeme dunning retry** — TAMAMLANDI | FR-27 | başarısız fatura otomatik tahsilatı (`InvoicePaymentFailed`) artık bir `dunning_schedules` planı açar; payment-service scheduler'ı vadesi gelen planları `payment.dunning.intervals` (varsayılan 24/72/168 saat, origin'e göre offset) ile re-charge eder. Başarılı retry → `InvoicePaid` (billing PAYMENT_FAILED→PAID, notification "ödendi") + plan RESOLVED; tüm denemeler biterse EXHAUSTED. Mock PSP tek kaynağa çekildi (`PaymentGateway`, eşik `payment.fail-threshold`); charge/attempt/audit `InvoiceChargeProcessor`+`PaymentAuditWriter`'a ortaklaştırıldı. Config: `payment.dunning.intervals` (Duration listesi; demo için `10s,20s,30s`), `poll-interval-ms`, `demo-recover-on-retry` (transient toparlanmayı simüle eder). Kilitli tarama (`FOR UPDATE SKIP LOCKED`), plan başına bir fatura (invoice_id UNIQUE). Not: `SlaBreached`/exhausted-bildirimi kapsam dışı — plan EXHAUSTED'da audit+log kalır |
 | **G9** | Küçükler | FR-01/04/30 | TCKN/VKN algoritmik doğrulama; customer soft-delete (KVKK); notification opt-in/opt-out |
 
 **Bilinçli scope-out (yapılmayacak — docx §6.2 zaten dışarıda tutuyor ya da MVP için ağır):**

@@ -21,3 +21,14 @@ spring:
         default:
           producer:
             sync: true
+
+# --- G8 dunning retry (FR-27): basarisiz fatura tahsilatlari icin yeniden deneme plani ---
+payment:
+  dunning:
+    # Origin (ilk basarisizlik) anindan itibaren retry offset'leri. Adet = maks retry.
+    # DEMO: gozle gormek icin kisalt (orn. 10s,20s,30s).
+    intervals: 24h,72h,168h
+    # true → retry'lar tutardan bagimsiz onaylanir (gecici hata toparlanmasi simulasyonu).
+    demo-recover-on-retry: false
+    # Scheduler tarama araligi (ms). DEMO'da intervals kisaltilinca bunu da kucult.
+    poll-interval-ms: 60000

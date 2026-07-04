@@ -1,6 +1,5 @@
 package com.turkcell.paymentservice.service;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -18,11 +17,9 @@ import com.turkcell.commonlib.saga.PaymentFailed;
 import com.turkcell.commonlib.saga.PaymentRefunded;
 import com.turkcell.commonlib.saga.RefundPaymentCommand;
 import com.turkcell.commonlib.saga.SagaTopics;
-import com.turkcell.paymentservice.entity.AuditLog;
 import com.turkcell.paymentservice.entity.Payment;
 import com.turkcell.paymentservice.entity.PaymentAttempt;
 import com.turkcell.paymentservice.entity.ProcessedEvent;
-import com.turkcell.paymentservice.repository.AuditLogRepository;
 import com.turkcell.paymentservice.repository.PaymentAttemptRepository;
 import com.turkcell.paymentservice.repository.PaymentRepository;
 import com.turkcell.paymentservice.repository.ProcessedEventRepository;
@@ -32,30 +29,38 @@ import com.turkcell.paymentservice.saga.OutboxWriter;
  * Saga participant is mantigi (mock PSP). Tahsilat ve iade.
  * Inbox idempotency (processed_events) + reply outbox YAZIMI tek transaction'da.
  *
- * DEMO knob: tutar {@link #FAIL_THRESHOLD} TRY'yi asarsa odeme REDDEDILIR
- * (PaymentFailed -> order compensation: ReleaseMsisdn). Yuksek ucretli tarife siparis ederek tetiklenir.
+ * DEMO knob: tutar {@link PaymentGateway} esigini asarsa odeme REDDEDILIR. Recurring fatura
+ * tahsilati basarisiz olursa dunning retry plani acilir (G8, FR-27).
  */
 @Service
 public class PaymentSagaService {
 
     private static final Logger log = LoggerFactory.getLogger(PaymentSagaService.class);
-    private static final BigDecimal FAIL_THRESHOLD = new BigDecimal("1000");
 
     private final PaymentRepository paymentRepository;
     private final PaymentAttemptRepository paymentAttemptRepository;
     private final ProcessedEventRepository processedEventRepository;
-    private final AuditLogRepository auditLogRepository;
+    private final PaymentGateway gateway;
+    private final PaymentAuditWriter audit;
+    private final InvoiceChargeProcessor invoiceCharge;
+    private final DunningService dunningService;
     private final OutboxWriter outbox;
 
     public PaymentSagaService(PaymentRepository paymentRepository,
                               PaymentAttemptRepository paymentAttemptRepository,
                               ProcessedEventRepository processedEventRepository,
-                              AuditLogRepository auditLogRepository,
+                              PaymentGateway gateway,
+                              PaymentAuditWriter audit,
+                              InvoiceChargeProcessor invoiceCharge,
+                              DunningService dunningService,
                               OutboxWriter outbox) {
         this.paymentRepository = paymentRepository;
         this.paymentAttemptRepository = paymentAttemptRepository;
         this.processedEventRepository = processedEventRepository;
-        this.auditLogRepository = auditLogRepository;
+        this.gateway = gateway;
+        this.audit = audit;
+        this.invoiceCharge = invoiceCharge;
+        this.dunningService = dunningService;
         this.outbox = outbox;
     }
 
@@ -66,7 +71,7 @@ public class PaymentSagaService {
             return;
         }
 
-        boolean approved = cmd.amount().compareTo(FAIL_THRESHOLD) <= 0;
+        boolean approved = gateway.authorize(cmd.amount());
 
         Payment payment = new Payment();
         payment.setOrderId(cmd.orderId());
@@ -89,7 +94,7 @@ public class PaymentSagaService {
         attempt.setAttemptedAt(Instant.now());
         paymentAttemptRepository.save(attempt);
 
-        audit("Payment", payment.getId(), approved ? "CHARGE_APPROVED" : "CHARGE_DECLINED",
+        audit.write("Payment", payment.getId(), approved ? "CHARGE_APPROVED" : "CHARGE_DECLINED",
                 "order=" + cmd.orderId() + " amount=" + cmd.amount() + " " + cmd.currency());
 
         if (approved) {
@@ -108,7 +113,7 @@ public class PaymentSagaService {
     /**
      * Recurring billing: bill-run faturasinin otomatik tahsilati (mock PSP).
      * Saga DISI akistir; reply saga-replies'a degil invoice-events'e doner (billing tuketir).
-     * Ayni DEMO knob'u kullanir: tutar {@link #FAIL_THRESHOLD} ustuyse RED -> InvoicePaymentFailed.
+     * Basarisizsa InvoicePaymentFailed yayinlanir VE dunning retry plani acilir (G8, FR-27).
      */
     @Transactional
     public void chargeInvoice(ChargeInvoiceCommand cmd) {
@@ -117,43 +122,23 @@ public class PaymentSagaService {
             return;
         }
 
-        boolean approved = cmd.amount().compareTo(FAIL_THRESHOLD) <= 0;
+        InvoiceChargeProcessor.Outcome outcome = invoiceCharge.charge(
+                cmd.invoiceId(), cmd.customerId(), cmd.amount(), cmd.currency(), "AUTO_PAY", false);
 
-        Payment payment = new Payment();
-        payment.setInvoiceId(cmd.invoiceId());
-        payment.setCustomerId(cmd.customerId());
-        payment.setAmount(cmd.amount());
-        payment.setCurrency(cmd.currency());
-        payment.setMethod("AUTO_PAY");
-        payment.setStatus(approved ? "PAID" : "FAILED");
-        if (approved) {
-            payment.setPaidAt(Instant.now());
-            payment.setExternalRef("PSP-" + UUID.randomUUID());
-        }
-        payment.setCreatedAt(Instant.now());
-        paymentRepository.save(payment);
-
-        PaymentAttempt attempt = new PaymentAttempt();
-        attempt.setPaymentId(payment.getId());
-        attempt.setAttemptNo(1);
-        attempt.setResponse(approved ? "APPROVED" : "DECLINED: tutar limiti asti");
-        attempt.setAttemptedAt(Instant.now());
-        paymentAttemptRepository.save(attempt);
-
-        audit("Payment", payment.getId(), approved ? "INVOICE_CHARGE_APPROVED" : "INVOICE_CHARGE_DECLINED",
-                "invoice=" + cmd.invoiceId() + " amount=" + cmd.amount() + " " + cmd.currency());
-
-        if (approved) {
+        if (outcome.approved()) {
             outbox.enqueue(SagaTopics.INVOICE_EVENTS, "InvoicePaid", cmd.invoiceId(),
-                    new InvoicePaid(UUID.randomUUID(), cmd.invoiceId(), payment.getId(),
+                    new InvoicePaid(UUID.randomUUID(), cmd.invoiceId(), outcome.paymentId(),
                             cmd.customerId(), cmd.amount(), cmd.currency()));
-            log.info("payment: invoice={} otomatik tahsilat OK (payment={})", cmd.invoiceId(), payment.getId());
+            log.info("payment: invoice={} otomatik tahsilat OK (payment={})", cmd.invoiceId(), outcome.paymentId());
         } else {
+            String reason = "tutar limiti asti: " + cmd.amount();
             outbox.enqueue(SagaTopics.INVOICE_EVENTS, "InvoicePaymentFailed", cmd.invoiceId(),
-                    new InvoicePaymentFailed(UUID.randomUUID(), cmd.invoiceId(),
-                            "tutar limiti asti: " + cmd.amount(),
+                    new InvoicePaymentFailed(UUID.randomUUID(), cmd.invoiceId(), reason,
                             cmd.customerId(), cmd.amount(), cmd.currency()));
-            log.info("payment: invoice={} otomatik tahsilat RED (tutar={})", cmd.invoiceId(), cmd.amount());
+            dunningService.open(cmd.invoiceId(), cmd.customerId(), cmd.amount(), cmd.currency(),
+                    reason, Instant.now());
+            log.info("payment: invoice={} otomatik tahsilat RED (tutar={}) -> dunning planlandi",
+                    cmd.invoiceId(), cmd.amount());
         }
 
         markProcessed(cmd.eventId());
@@ -177,24 +162,13 @@ public class PaymentSagaService {
             attempt.setAttemptedAt(Instant.now());
             paymentAttemptRepository.save(attempt);
 
-            audit("Payment", payment.getId(), "REFUNDED", "order=" + cmd.orderId() + " reason=" + cmd.reason());
+            audit.write("Payment", payment.getId(), "REFUNDED", "order=" + cmd.orderId() + " reason=" + cmd.reason());
             log.info("payment: order={} iade edildi (compensation)", cmd.orderId());
         });
 
         outbox.enqueue(SagaTopics.SAGA_REPLIES, "PaymentRefunded", cmd.orderId(),
                 new PaymentRefunded(UUID.randomUUID(), cmd.orderId()));
         markProcessed(cmd.eventId());
-    }
-
-    private void audit(String entity, UUID entityId, String action, String detail) {
-        AuditLog a = new AuditLog();
-        a.setServiceName("payment-service");
-        a.setEntityName(entity);
-        a.setEntityId(entityId);
-        a.setAction(action);
-        a.setDetail(detail);
-        a.setCreatedAt(Instant.now());
-        auditLogRepository.save(a);
     }
 
     private void markProcessed(UUID eventId) {
