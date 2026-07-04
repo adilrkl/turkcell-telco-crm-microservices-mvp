@@ -278,25 +278,29 @@ Temel mimari oturdu: config, service discovery, gateway + BFF, Keycloak güvenli
 Outbox/Inbox, Saga orchestration, mediator-tabanlı CQRS, rate limiting ve observability entegre.
 Frontend de artık bu repodadır (monorepo, `frontend/`); mimari kararları için [FRONTEND.md](FRONTEND.md).
 
-### 📍 DEVAM NOKTASI (son güncelleme: 2026-07-04, Sprint-2 + saga-IT branch'leri sonrası)
+### 📍 DEVAM NOKTASI (son güncelleme: 2026-07-04, docx kapsam kıyası sonrası)
 
-**Durum:** Faz 1 ✅ · Faz 2 ✅ · Faz 3 ilerliyor: **saga entegrasyon testleri + inbox-idempotency yayılımı tamam**
-(45 test yeşil = 27 mevcut + 18 yeni; Kafka'lı Testcontainers ile happy-path/compensation/timeout) ·
-**FE Sprint 2 tamam** (ticket detay: durum geçişi + atama + yorumlar; orders: sipariş formu + AntD Steps saga izleme).
+**Durum:** Faz 1 ✅ · Faz 2 ✅ · Faz 3 ilerliyor (45 test yeşil; Kafka'lı saga IT'leri + inbox-idempotency yayılımı tamam) ·
+**FE Sprint 2 merge edildi** (PR #19) · **FE Sprint 3 Tariffs sayfası** `feat/frontend-sprint3` branch'inde PR bekliyor
+(typed-client geçişi bilinçli olarak Faz 4 CI kararına ertelendi).
 
-**Merge bekleyen branch'ler:** `feat/saga-integration-tests` (Track B) ve `feat/frontend-sprint2` (Track A) —
-ayrık dosya ağaçları, sıra farketmeksizin merge edilebilir.
+**Öncelik değişikliği (2026-07-04):** MVP analiz dokümanı (`telco-crm-microservices-mvp ... .docx`) ile satır satır
+kıyas yapıldı. Sonuç: derinlikte doküman aşıldı (outbox/inbox, DLQ, test, observability), **genişlikte boşluklar var**.
+Karar: önce **Faz 3.5 — docx kapsam boşlukları** (aşağıdaki G1–G9 tablosu) kapatılacak.
+**Saga sertleştirme backlog'a alındı** — docx gereksinimi değil (FR-10/12 karşılandı ve `OrderSagaIntegrationTest` ile kanıtlı);
+yalnızca timeout süresini config'e alma ufak işi uygun bir backend PR'ına iliştirilecek.
 
 **Çalışma düzeni:** İki paralel track, ayrık dosya ağaçları → iki PR aynı anda açık olabilir, conflict çıkmaz.
 Kural: [FRONTEND.md](FRONTEND.md) FE track'ine, bu README'nin yol haritası backend track'ine aittir.
 
 | Sıradaki iş | Track A — Frontend (`frontend/`) | Track B — Backend |
 |---|---|---|
-| **1 (buradan devam)** | **Sprint 3:** Tariffs sayfası (liste + `CATALOG_ADMIN` create); `npm run generate:api` ile üretilen tam tipli client'a geçiş | **Saga sertleştirme** (güvence ağı artık hazır): compensation ack bekleyen iki-fazlı iptal + timeout prod ayarları — `OrderSagaIntegrationTest` bu refactor'un regresyon ağıdır |
-| 2 | Sprint 4: Billing (fatura listesi + kalem detayı) ve Subscriptions sayfaları | **Faz 4 başlangıcı:** Dockerfile (servis başına) + GitHub Actions CI (`mvn verify` + Testcontainers + FE build) — PR gate |
+| **1 (buradan devam)** | Sprint 4: Billing (fatura listesi + kalem detayı) ve Subscriptions sayfaları; G-işleri API çıkardıkça UI bağlanır (örn. G1 kota kartı, G4 abonelik aksiyonları) | **Faz 3.5:** G1 → G9 sırasıyla (tablo aşağıda); ilk üç: **G1 kota zinciri + CDR simülatörü**, **G2 fatura bildirimleri**, **G3 KYC mini akışı** |
+| 2 | Typed-client (`generate:api`) geçişi — Faz 4 CI kararıyla birlikte | **Faz 4:** Dockerfile + GitHub Actions CI (test gate) — Faz 3.5 ile paralel yürüyebilir |
 
 **Açık kararlar (bloklamıyor):** CUSTOMER self-servisi için kullanıcı↔müşteri bağlantısı (Keycloak `sub` ≠ `customerId`;
-ilk FE sürümü CSR/ADMIN odaklı — [FRONTEND.md](FRONTEND.md) §13) · JaCoCo coverage eşiği (kapsam büyüyünce) · Faz 5/6 kalemleri.
+ilk FE sürümü CSR/ADMIN odaklı — [FRONTEND.md](FRONTEND.md) §13) · JaCoCo coverage eşiği (kapsam büyüyünce) ·
+üretilen client'ı commit'leme vs build-time spec üretimi (Faz 4'te karara bağlanacak) · Faz 5/6 kalemleri.
 
 **Kaldığın yerden hızlı başlatma:**
 ```bash
@@ -308,6 +312,34 @@ cd frontend && npm install && npm run dev # http://localhost:5173 → "Giriş ya
 ```
 > Windows notu: Docker Desktop'ta Testcontainers "Docker bulunamadı" derse `~/.testcontainers.properties`
 > içine `docker.host=npipe:////./pipe/dockerDesktopLinuxEngine` yaz (Linux/CI'da gerekmez).
+
+### 📋 Faz 3.5 — Docx kapsam tamamlama (genişlik boşlukları)
+
+MVP analiz dokümanıyla yapılan kıyasın (2026-07-04) çıktısı. Sıra = öneri; G1–G3 kabul senaryolarını
+(docx §14) kapattığı için önce onlar. Her G-işi kendi branch/PR'ı ile gider.
+
+| # | İş | Docx ref | Kapsam |
+|---|---|---|---|
+| **G1** | **Kota zinciri + CDR simülatörü** | FR-17..20, senaryo 14.3, §10.5 | usage-service'e `Quota` varlığı (dönemlik kalan dakika/SMS/MB; tarife hakkından açılır) + kalan kota endpoint'i; kullanım düştükçe kota azalır; %80/%100 eşiğinde `QuotaThresholdReached` eventi → notification SMS; dönem aşımı billing'e overage kalemi olarak akar; `usage-events` üreten basit CDR simülatörü (script veya profil-korumalı endpoint) |
+| **G2** | **Fatura bildirimleri** | senaryo 14.2, §8.8 | notification-service `invoice-events`'i de dinler: `InvoiceGenerated` → "faturanız kesildi" (e-posta mock), `InvoicePaid` / `InvoicePaymentFailed` bildirimleri; yeni şablon seed'leri; inbox-idempotency IT'si aynı kalıpla |
+| **G3** | **KYC mini akışı** | FR-02/03, senaryo 14.1, §10.1 | customer-service'e `Address` + `Document` varlıkları; belge yükleme (fileRef mock); `POST /{id}/kyc/approve\|reject` (ADMIN); yeni müşteri `PENDING` doğar → onayla `ACTIVE` (order zaten ACTIVE şartı arıyor, akış otomatik sıkılaşır); `CustomerKYCApproved` eventi |
+| **G4** | Abonelik yaşam döngüsü | FR-14, §8.4 | `suspend` / `reactivate` / `terminate` endpoint'leri (CSR/ADMIN) + durum makinesi + audit; FE Subscriptions sayfası aksiyonları Sprint 4'te bağlanır |
+| **G5** | Manuel sipariş iptali | §8.3 | `POST /api/orders/{id}/cancel` — mevcut compensation altyapısını yeniden kullanır (yalnız terminal-öncesi durumlar; ulaşılan adıma göre release/refund) |
+| **G6** | Fatura PDF | FR-23 | `GET /invoices/{id}/pdf` — basit PDF üretimi (OpenPDF vb.); MinIO/object-storage taşıması Faz 6'da kalır |
+| **G7** | Ticket otomasyonu | FR-32/33 | `TicketOpened` eventi → notification; açılışta önceliğe göre `slaDueAt` otomatik hesap + basit auto-assign |
+| **G8** | Ödeme dunning retry | FR-27 | başarısız fatura ödemeleri için 24/72/168 saat retry scheduler'ı (demo için sürelerin config'le kısaltılması) |
+| **G9** | Küçükler | FR-01/04/30 | TCKN/VKN algoritmik doğrulama; customer soft-delete (KVKK); notification opt-in/opt-out |
+
+**Bilinçli scope-out (yapılmayacak — docx §6.2 zaten dışarıda tutuyor ya da MVP için ağır):**
+Addon/VAS kataloğu + paket değişikliği/addon siparişi (FR-05'in kalanı, FR-09'un kalanı) · tarife versiyonlama (FR-08) ·
+MNP (FR-16, §6.2 scope-out) · prepaid/top-up (§6.2) · PII şifreleme + Vault (Faz 5'te) · kurumsal müşteri akışları (§6.2).
+
+**Docx'ten bilinçli sapmalar (eksik değil, karar):** Keycloak + BFF (docx'te Keycloak "opsiyonel", baz senaryo
+gateway-behind-trust + custom JWT idi; tam OIDC daha doğru ve refresh rotation'ı Keycloak hallediyor) ·
+saga **orchestration** (docx §9.2 şeması choreography-vari ama §8.3 "Saga ile orchestrate" der; SAGA.md'de gerekçeli) ·
+versiyonsuz `/api/**` (docx `/api/v1`) · `ApiResponse` zarfı (docx RFC 7807) · portlar 8081–8090 (docx 9001–9010) ·
+el yazımı mapper (docx MapStruct) · `Idempotency-Key`/`Correlation-Id` header'ları yerine event-inbox idempotency +
+OTel trace korelasyonu · FE SPA (docx'te scope-out — BFF konusunu sergilemek için bilinçli eklendi).
 
 ### ✅ Tamamlananlar
 - **Saga orchestration** — order orchestrator (`saga_states`) + reserve→ödeme→aktivasyon + compensation + timeout. Bkz. [SAGA.md](SAGA.md).
@@ -331,7 +363,7 @@ cd frontend && npm install && npm run dev # http://localhost:5173 → "Giriş ya
 - ✅ **Kafka DLQ + retry** — consumer hatalarında 3 deneme (üslü backoff) + `error.<topic>.<group>` dead-letter topic; zehirli mesaj izolasyonu (null `eventId`/bozuk payload artık sonsuz redelivery yapmaz). Tüm consumer'lara ortak (`application.yaml`).
 - ✅ **Recurring billing** — aylık bill-run (`SKIP LOCKED`) + fatura kesimi + `ChargeInvoiceCommand → payment` auto-pay + `invoice-events` reply → invoice `PAID/PAYMENT_FAILED`. Bkz. §13.
 - ✅ **FE hazırlık API'leri** — BFF `/api/me` + 401 sözleşmesi; subscription/billing okuma API'leri; order list; customer sayfalama/arama/create/update. Bkz. §14 ve [FRONTEND.md](FRONTEND.md).
-- **Saga sertleştirme** — compensation ack'lerini bekleyen iki-fazlı iptal; saga timeout job'ının prod ayarları. *(Bilinçli erteleme: Faz 3'te — saga çekirdeğine önce Testcontainers güvence ağı kurulup öyle dokunulacak.)*
+- **Saga sertleştirme** — compensation ack'lerini bekleyen iki-fazlı iptal. *(2026-07-04: **backlog'a alındı** — docx gereksinimi değil; FR-12 compensation mevcut ve `OrderSagaIntegrationTest` ile kanıtlı. Önce Faz 3.5 docx boşlukları. Timeout süresini config'e alma ufak işi uygun bir backend PR'ına iliştirilecek.)*
 
 ### Faz 3 — Test & kalite (başladı)
 - ✅ **Test altyapısı** — JaCoCo (tüm modüller, `verify`'da rapor) + **Testcontainers 2.x** BOM (Docker Engine 29 uyumu; 1.x'in docker-java'sı yeni engine API'sinde 400 alır).
@@ -339,7 +371,7 @@ cd frontend && npm install && npm run dev # http://localhost:5173 → "Giriş ya
 - ✅ **İlk entegrasyon testi (kalıp)** — `OrderEventHandlerIntegrationTest`: gerçek Postgres (Testcontainers `@ServiceConnection`) + Flyway; inbox idempotency (aynı `eventId` × 2 → tek `bill_cycle`). Diğer consumer'lara aynı kalıp uygulanacak.
 - ✅ **Saga entegrasyon testleri** — `OrderSagaIntegrationTest` (order-service, 4 test): gerçek Postgres + gerçek Kafka (Testcontainers 2.x); sipariş gerçek giriş yolundan verilir (Mediator, Feign mock), participant'ları test oynar. Happy-path `FULFILLED`, aktivasyon hatası (`RefundPayment`+`ReleaseMsisdn`→`CANCELLED`), ödeme hatası (yalnız release), timeout süpürücü. `_FAIL` kuralı ve >1000 TRY reddi gibi participant davranışları subscription/payment slice IT'lerinde.
 - ✅ **Inbox-idempotency yayılımı** — billing'deki kalıp 4 consumer'a uygulandı: subscription (4), payment (4), notification (3), usage (3); iş tabloları + reply outbox birlikte assert edilir.
-- **Saga sertleştirme** — compensation ack bekleyen iki-fazlı iptal + timeout prod ayarları; artık yukarıdaki güvence ağıyla yapılacak (Track B sıradaki iş).
+- **Saga sertleştirme** — backlog (bkz. Faz 2 notu ve "DEVAM NOKTASI"); güvence ağı hazır, docx boşlukları (Faz 3.5) öne alındı.
 - **Contract / API test** — OpenAPI spec doğrulama; kritik akışlar için Postman/newman koleksiyonu CI'da.
 - **Coverage gate** — kapsam büyüdükçe JaCoCo eşiği (örn. %70) build'de zorunlu hale getirilecek.
 
