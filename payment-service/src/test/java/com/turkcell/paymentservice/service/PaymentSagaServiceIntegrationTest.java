@@ -39,7 +39,8 @@ import tools.jackson.databind.json.JsonMapper;
  */
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({PaymentSagaService.class, OutboxWriter.class})
+@Import({PaymentSagaService.class, OutboxWriter.class, PaymentGateway.class, PaymentAuditWriter.class,
+        InvoiceChargeProcessor.class, DunningService.class})
 @Testcontainers(disabledWithoutDocker = true)
 class PaymentSagaServiceIntegrationTest {
 
@@ -53,6 +54,7 @@ class PaymentSagaServiceIntegrationTest {
         ObjectMapper testObjectMapper() {
             return JsonMapper.builder().build();
         }
+
     }
 
     @Autowired

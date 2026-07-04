@@ -1,38 +1,37 @@
 GUNCEL DEVAM NOKTASI -> README.md "DEVAM NOKTASI" + "Faz 3.5" bolumleri (tek kaynak orasidir).
 
-Kisa ozet (2026-07-04, G1-G7 sonrasi):
-- Faz 1 + Faz 2 tamam; 89 test yesil (Kafka'li saga IT + inbox-idempotency + kota/KYC/lifecycle/iptal/PDF/ticket)
+Kisa ozet (2026-07-04, G1-G8 sonrasi):
+- Faz 1 + Faz 2 tamam; 92 test yesil (Kafka'li saga IT + inbox-idempotency + kota/KYC/lifecycle/iptal/PDF/ticket/dunning)
 - FE Sprint 3 merge edildi (PR #21); Track A siradaki is: Sprint 4 (Billing + Subscriptions sayfalari)
-- Faz 3.5: G1 kota (PR #23), G2 fatura bildirim (PR #24), G3 KYC (PR #25), G4 yasam dongusu (PR #27),
-  G5 siparis iptali (PR #28), G6 fatura PDF (PR #29), G7 ticket otomasyonu TAMAM
+- Faz 3.5: G1 kota (#23), G2 fatura bildirim (#24), G3 KYC (#25), G4 yasam dongusu (#27),
+  G5 siparis iptali (#28), G6 fatura PDF (#29), G7 ticket otomasyonu (#30), G8 dunning retry TAMAM
 - DIKKAT (G3 davranis degisikligi): yeni musteri PENDING dogar; siparis icin belge + ADMIN kyc/approve gerekir
 - G5 notu: POST /api/orders/{id}/cancel (CSR/ADMIN); yalniz terminal-oncesi; adima gore release/refund
 - G6 notu: GET /api/billing/invoices/{id}/pdf (OpenPDF, istek aninda uretim, saklama yok)
-- G7 notu: POST /api/tickets acilista SLA (oncelik) + team (kategori) otomatik; TicketOpened -> ticket-events
-  -> notification TICKET_OPENED SMS. slaDueAt artik client'tan alinmiyor. ticket-service'e outbox eklendi.
+- G7 notu: POST /api/tickets acilista SLA (oncelik) + team (kategori) otomatik; TicketOpened -> notification SMS
+- G8 notu: basarisiz fatura tahsilati dunning_schedules plani acar; payment scheduler 24/72/168 saat
+  (payment.dunning.intervals, origin'e gore offset) re-charge eder; basarili retry -> InvoicePaid (fatura
+  PAYMENT_FAILED->PAID), tukenirse EXHAUSTED. Mock PSP tek kaynakta (PaymentGateway); demo knob'lari:
+  payment.dunning.demo-recover-on-retry + intervals kisaltma (10s,20s,30s) + poll-interval-ms.
 - KARAR (nihai): outbox common-lib'e CIKARILMADI; her servis kendi kopyasini tasir. Bir daha sorma.
 - Saga sertlestirme BACKLOG'da (docx gereksinimi degil; FR-10/12 karsilandi, IT'li)
 
 ONCELIK SIRASI — Faz 3.5 docx bosluklari (detay: README "Faz 3.5" tablosu):
-  G1  Kota zinciri + CDR simulatoru        TAMAM (PR #23)
-  G2  Fatura bildirimleri                  TAMAM (PR #24)
-  G3  KYC mini akisi                       TAMAM (PR #25)
-  G4  Abonelik suspend/reactivate/terminate TAMAM (PR #27)
-  G5  Manuel siparis iptali                TAMAM (PR #28)
-  G6  Fatura PDF                           TAMAM (PR #29)
-  G7  Ticket otomasyonu                    TAMAM
-  G8  Odeme dunning retry 24/72/168 saat (FR-27)  <- BURADAN DEVAM
-      (demo icin sureler config'le kisaltilabilir)
-  G9  Kucukler: TCKN/VKN dogrulama, soft-delete, opt-in/out
+  G1  Kota zinciri + CDR simulatoru        TAMAM (#23)
+  G2  Fatura bildirimleri                  TAMAM (#24)
+  G3  KYC mini akisi                       TAMAM (#25)
+  G4  Abonelik suspend/reactivate/terminate TAMAM (#27)
+  G5  Manuel siparis iptali                TAMAM (#28)
+  G6  Fatura PDF                           TAMAM (#29)
+  G7  Ticket otomasyonu                    TAMAM (#30)
+  G8  Odeme dunning retry                  TAMAM
+  G9  Kucukler: TCKN/VKN dogrulama, soft-delete (KVKK), notification opt-in/out  <- BURADAN DEVAM (Faz 3.5 SON)
+      (FR-01/04/30; tek PR'da uc kucuk kalem)
 
-Paralel/sonrasi:
-- Track A (FE): Sprint 4 (Billing + Subscriptions sayfalari); hazir API'ler: kota karti
-  GET /api/usage/quota, KYC onay/red + adres/belge endpoint'leri,
-  G4 abonelik aksiyonlari POST /api/subscriptions/{id}/suspend|reactivate|terminate,
-  G5 siparis iptali POST /api/orders/{id}/cancel,
-  G6 fatura PDF GET /api/billing/invoices/{id}/pdf,
-  G7 ticket: POST /api/tickets (SLA/team otomatik), GET/liste + durum/atama/yorum mevcut
-- Faz 4: Dockerfile + GitHub Actions CI test-gate (Faz 3.5 ile paralel yurutulebilir);
-  typed-client (generate:api) karari CI ile birlikte
+Sonrasi (Faz 3.5 bitince):
+- Faz 4: Dockerfile + GitHub Actions CI test-gate; typed-client (generate:api) karari CI ile
+- Track A (FE): Sprint 4 (Billing + Subscriptions sayfalari); hazir API'ler:
+  GET /api/usage/quota, KYC onay/red + adres/belge, POST /api/subscriptions/{id}/suspend|reactivate|terminate,
+  POST /api/orders/{id}/cancel, GET /api/billing/invoices/{id}/pdf, POST /api/tickets (SLA/team otomatik)
 
 Bilincli scope-out ve docx'ten bilincli sapmalar: README "Faz 3.5" bolumunun altinda.
