@@ -71,7 +71,8 @@ public class PlaceOrderCommandHandler implements CommandHandler<PlaceOrderComman
         orderRepository.save(order);
 
         // 4) Saga'yi baslat - AYNI transaction icinde (saga_states + ilk komut outbox'a yazilir)
-        orchestrator.start(order, command.customerId(), tariff.code(), price, CURRENCY);
+        orchestrator.start(order, command.customerId(), tariff.code(), price, CURRENCY,
+                tariff.minutesIncluded(), tariff.smsIncluded(), tariff.dataMbIncluded());
 
         return orderMapper.toResponse(order, tariff.code());
     }

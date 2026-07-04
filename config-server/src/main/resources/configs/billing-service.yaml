@@ -5,11 +5,12 @@ spring:
     password: ${DB_PASS:secret}
     driver-class-name: org.postgresql.Driver
   # --- Tuketiciler: order-events (OrderConfirmed -> bill_cycle) + invoice-events
-  #     (payment'in fatura tahsilat reply'lari). Producer: OutboxPoller (ChargeInvoiceCommand
+  #     (payment'in fatura tahsilat reply'lari) + quota-events (OverageRecorded ->
+  #     pending_charges). Producer: OutboxPoller (ChargeInvoiceCommand
   #     -> payment-commands, StreamBridge dinamik) -> sync publish zorunlu.
   cloud:
     function:
-      definition: consumeOrderEvents;consumeInvoiceEvents
+      definition: consumeOrderEvents;consumeInvoiceEvents;consumeQuotaEvents
     stream:
       bindings:
         consumeOrderEvents-in-0:
@@ -17,6 +18,9 @@ spring:
           group: billing-service-group
         consumeInvoiceEvents-in-0:
           destination: invoice-events
+          group: billing-service-group
+        consumeQuotaEvents-in-0:
+          destination: quota-events
           group: billing-service-group
       kafka:
         binder:
@@ -26,3 +30,11 @@ spring:
         default:
           producer:
             sync: true
+
+# Kota asim birim fiyatlari (G1 / FR-20): ingest aninda dondurulur (pending_charges.unit_price).
+# Kod tarafinda ayni default'lar vardir; burada gorunur olsun diye tekrarlanir.
+billing:
+  overage:
+    voice-per-minute: 0.50   # TRY / dk
+    sms-per-unit: 0.25       # TRY / adet
+    data-per-mb: 0.05        # TRY / MB

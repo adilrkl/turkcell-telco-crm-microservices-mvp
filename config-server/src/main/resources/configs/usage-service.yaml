@@ -4,15 +4,26 @@ spring:
     username: ${DB_USER:usage_user}
     password: ${DB_PASS:secret}
     driver-class-name: org.postgresql.Driver
-  # --- usage-events tuketicisi (UsageRecorded -> usage_records; inbox idempotent) ---
+  # --- Tuketiciler: usage-events (UsageRecorded -> usage_records + kota dusumu) +
+  #     order-events (OrderConfirmed -> tarife hak fotografi + donem kotasi). Producer:
+  #     OutboxPoller (QuotaThresholdReached/OverageRecorded -> quota-events, StreamBridge
+  #     dinamik) -> sync publish zorunlu. CDR simulatoru da (dev) usage-events'e publish eder.
   cloud:
     function:
-      definition: consumeUsageEvents
+      definition: consumeUsageEvents;consumeOrderEvents
     stream:
       bindings:
         consumeUsageEvents-in-0:
           destination: usage-events
           group: usage-service-group
+        consumeOrderEvents-in-0:
+          destination: order-events
+          group: usage-service-group
       kafka:
         binder:
           brokers: ${KAFKA_BROKERS:localhost:9092}
+        # Outbox publish sync olmali: send() broker ack'ini bekler, hata poller'in
+        # retry yoluna duser. Async'te send true donup mesaj buffer'da kaybolabilir.
+        default:
+          producer:
+            sync: true

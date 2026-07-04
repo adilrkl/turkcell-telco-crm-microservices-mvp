@@ -70,8 +70,10 @@ public class OrderSagaOrchestrator {
     }
 
     /** Siparis yaziminin transaction'i icinde cagrilir: saga'yi baslatir ve ilk komutu kuyruga koyar. */
-    public void start(Order order, UUID customerId, String tariffCode, BigDecimal amount, String currency) {
-        SagaContext ctx = new SagaContext(customerId, tariffCode, amount, currency, null, null, null);
+    public void start(Order order, UUID customerId, String tariffCode, BigDecimal amount, String currency,
+                      Integer minutesIncluded, Integer smsIncluded, Integer dataMbIncluded) {
+        SagaContext ctx = new SagaContext(customerId, tariffCode, amount, currency, null, null, null,
+                minutesIncluded, smsIncluded, dataMbIncluded);
         SagaState saga = new SagaState();
         saga.setOrderId(order.getId());
         saga.setCurrentStep(SagaSteps.STARTED);
@@ -149,7 +151,8 @@ public class OrderSagaOrchestrator {
             setOrderStatus(ev.orderId(), OrderStatus.FULFILLED);
             outbox.enqueue(SagaTopics.ORDER_EVENTS, "OrderConfirmed", ev.orderId(),
                     new OrderConfirmed(UUID.randomUUID(), ev.orderId(), ctx.customerId(), ev.subscriptionId(),
-                            ctx.tariffCode(), ctx.msisdn(), ctx.amount(), ctx.currency()));
+                            ctx.tariffCode(), ctx.msisdn(), ctx.amount(), ctx.currency(),
+                            ctx.minutesIncluded(), ctx.smsIncluded(), ctx.dataMbIncluded()));
             log.info("order={} abonelik aktif (sub={}) -> FULFILLED", ev.orderId(), ev.subscriptionId());
         }
         markProcessed(ev.eventId());

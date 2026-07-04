@@ -12,7 +12,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Pageable;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -24,17 +26,31 @@ import com.turkcell.usageservice.entity.UsageRecord;
 import com.turkcell.usageservice.event.UsageRecordedEvent;
 import com.turkcell.usageservice.repository.ProcessedEventRepository;
 import com.turkcell.usageservice.repository.UsageRecordRepository;
+import com.turkcell.usageservice.saga.OutboxWriter;
+
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
- * Inbox idempotency entegrasyon testi — GERCEK Postgres (Testcontainers) + Flyway V1..V3.
+ * Inbox idempotency entegrasyon testi — GERCEK Postgres (Testcontainers) + Flyway V1..V5.
  * DIKKAT: V3 migration'i demo abonelik (33333333-...) icin 4 usage_records satiri seed'ler;
  * bu yuzden assert'ler findAll() yerine testin rastgele subscriptionId'sine gore filtrelenir.
+ * (Rastgele aboneliklerin hak fotografi yoktur -> kota dusumu devreye girmez; kota
+ * senaryolari QuotaServiceIntegrationTest'tedir.)
  */
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({UsageEventHandler.class, UsageRecordMapper.class})
+@Import({UsageEventHandler.class, UsageRecordMapper.class, QuotaService.class, OutboxWriter.class})
 @Testcontainers(disabledWithoutDocker = true)
 class UsageEventHandlerIntegrationTest {
+
+    @TestConfiguration
+    static class Config {
+        @Bean
+        ObjectMapper objectMapper() {
+            return JsonMapper.builder().build();
+        }
+    }
 
     @Container
     @ServiceConnection

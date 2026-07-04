@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Testlerde common-lib'in logback-spring.xml'i (loki4j appender) devre disi kalir:
+     Loki ayakta degilken async push ERROR status'lari, ayni surefire JVM'inde IKINCI
+     Spring context yuklenirken Boot tarafindan "Logback configuration error detected"
+     sayilip context'i dusurur. Test loglari yalniz konsola akar. -->
+<configuration>
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+</configuration>

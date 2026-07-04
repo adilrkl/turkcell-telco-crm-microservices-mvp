@@ -278,10 +278,10 @@ Temel mimari oturdu: config, service discovery, gateway + BFF, Keycloak güvenli
 Outbox/Inbox, Saga orchestration, mediator-tabanlı CQRS, rate limiting ve observability entegre.
 Frontend de artık bu repodadır (monorepo, `frontend/`); mimari kararları için [FRONTEND.md](FRONTEND.md).
 
-### 📍 DEVAM NOKTASI (son güncelleme: 2026-07-04, docx kapsam kıyası sonrası)
+### 📍 DEVAM NOKTASI (son güncelleme: 2026-07-04, G1 kota zinciri sonrası)
 
-**Durum:** Faz 1 ✅ · Faz 2 ✅ · Faz 3 ilerliyor (45 test yeşil; Kafka'lı saga IT'leri + inbox-idempotency yayılımı tamam) ·
-**FE Sprint 2 merge edildi** (PR #19) · **FE Sprint 3 Tariffs sayfası** `feat/frontend-sprint3` branch'inde PR bekliyor
+**Durum:** Faz 1 ✅ · Faz 2 ✅ · Faz 3 ilerliyor · **Faz 3.5 başladı: G1 ✅** (kota zinciri + CDR simülatörü;
+56 test yeşil) · FE Sprint 3 merge edildi (PR #21) · Sıradaki backend işi: **G2 fatura bildirimleri**
 (typed-client geçişi bilinçli olarak Faz 4 CI kararına ertelendi).
 
 **Öncelik değişikliği (2026-07-04):** MVP analiz dokümanı (`telco-crm-microservices-mvp ... .docx`) ile satır satır
@@ -295,7 +295,7 @@ Kural: [FRONTEND.md](FRONTEND.md) FE track'ine, bu README'nin yol haritası back
 
 | Sıradaki iş | Track A — Frontend (`frontend/`) | Track B — Backend |
 |---|---|---|
-| **1 (buradan devam)** | Sprint 4: Billing (fatura listesi + kalem detayı) ve Subscriptions sayfaları; G-işleri API çıkardıkça UI bağlanır (örn. G1 kota kartı, G4 abonelik aksiyonları) | **Faz 3.5:** G1 → G9 sırasıyla (tablo aşağıda); ilk üç: **G1 kota zinciri + CDR simülatörü**, **G2 fatura bildirimleri**, **G3 KYC mini akışı** |
+| **1 (buradan devam)** | Sprint 4: Billing (fatura listesi + kalem detayı) ve Subscriptions sayfaları; G-işleri API çıkardıkça UI bağlanır (G1 kota kartı artık hazır: `GET /api/usage/quota`; G4 abonelik aksiyonları) | **Faz 3.5:** G1 ✅ → sıradaki **G2 fatura bildirimleri**, sonra **G3 KYC mini akışı** (tablo aşağıda) |
 | 2 | Typed-client (`generate:api`) geçişi — Faz 4 CI kararıyla birlikte | **Faz 4:** Dockerfile + GitHub Actions CI (test gate) — Faz 3.5 ile paralel yürüyebilir |
 
 **Açık kararlar (bloklamıyor):** CUSTOMER self-servisi için kullanıcı↔müşteri bağlantısı (Keycloak `sub` ≠ `customerId`;
@@ -308,7 +308,7 @@ docker compose up -d                      # altyapı (keycloak realm değiştiys
 ./mvnw clean install -DskipTests          # JAVA_HOME = JDK 21 olmalı
 # servisleri sırayla başlat (bkz. "Başlangıç" bölümü) — 14 servis
 cd frontend && npm install && npm run dev # http://localhost:5173 → "Giriş yap" → csruser/test12345
-./mvnw test                               # 45 test (Kafka'lı saga IT dahil; Docker açık olmalı)
+./mvnw test                               # 56 test (Kafka'lı saga IT dahil; Docker açık olmalı)
 ```
 > Windows notu: Docker Desktop'ta Testcontainers "Docker bulunamadı" derse `~/.testcontainers.properties`
 > içine `docker.host=npipe:////./pipe/dockerDesktopLinuxEngine` yaz (Linux/CI'da gerekmez).
@@ -320,7 +320,7 @@ MVP analiz dokümanıyla yapılan kıyasın (2026-07-04) çıktısı. Sıra = ö
 
 | # | İş | Docx ref | Kapsam |
 |---|---|---|---|
-| **G1** | **Kota zinciri + CDR simülatörü** | FR-17..20, senaryo 14.3, §10.5 | usage-service'e `Quota` varlığı (dönemlik kalan dakika/SMS/MB; tarife hakkından açılır) + kalan kota endpoint'i; kullanım düştükçe kota azalır; %80/%100 eşiğinde `QuotaThresholdReached` eventi → notification SMS; dönem aşımı billing'e overage kalemi olarak akar; `usage-events` üreten basit CDR simülatörü (script veya profil-korumalı endpoint) |
+| **G1 ✅** | **Kota zinciri + CDR simülatörü** — TAMAMLANDI | FR-17..20, senaryo 14.3, §10.5 | `OrderConfirmed` artık tarife haklarını taşır (event-carried state) → usage-service hak fotoğrafı + dönem kotası açar; kullanım düştükçe kota azalır (aylık lazy rollover); %80/%100 eşiğinde `QuotaThresholdReached`, kota bitince `OverageRecorded` → `quota-events` (usage outbox); notification eşik SMS'i atar (`QUOTA_WARNING_80/QUOTA_EXCEEDED`), billing aşımı `pending_charges`'a biriktirip bill-run'da KDV'li fatura kalemi yapar; kalan kota: `GET /api/usage/quota?subscriptionId=` (CSR/ADMIN); CDR simülatörü: `POST /api/usage/simulate` (dev profili + ADMIN, `usage-events`'e rastgele CDR basar) |
 | **G2** | **Fatura bildirimleri** | senaryo 14.2, §8.8 | notification-service `invoice-events`'i de dinler: `InvoiceGenerated` → "faturanız kesildi" (e-posta mock), `InvoicePaid` / `InvoicePaymentFailed` bildirimleri; yeni şablon seed'leri; inbox-idempotency IT'si aynı kalıpla |
 | **G3** | **KYC mini akışı** | FR-02/03, senaryo 14.1, §10.1 | customer-service'e `Address` + `Document` varlıkları; belge yükleme (fileRef mock); `POST /{id}/kyc/approve\|reject` (ADMIN); yeni müşteri `PENDING` doğar → onayla `ACTIVE` (order zaten ACTIVE şartı arıyor, akış otomatik sıkılaşır); `CustomerKYCApproved` eventi |
 | **G4** | Abonelik yaşam döngüsü | FR-14, §8.4 | `suspend` / `reactivate` / `terminate` endpoint'leri (CSR/ADMIN) + durum makinesi + audit; FE Subscriptions sayfası aksiyonları Sprint 4'te bağlanır |
@@ -342,6 +342,7 @@ el yazımı mapper (docx MapStruct) · `Idempotency-Key`/`Correlation-Id` header
 OTel trace korelasyonu · FE SPA (docx'te scope-out — BFF konusunu sergilemek için bilinçli eklendi).
 
 ### ✅ Tamamlananlar
+- **Kota zinciri + CDR simülatörü (G1, Faz 3.5)** — `quotas`/`subscription_entitlements` (usage V4-V5) + usage-service outbox → `quota-events`; eşik SMS'leri (notification V4 şablonları) + `pending_charges` → bill-run aşım kalemi (billing V4). Aşım birim fiyatları billing config'te (`billing.overage.*`; ingest anında dondurulur). CDR simülatörü dev-profili endpoint'idir; kayıtlar gerçek Kafka yolundan akar.
 - **Saga orchestration** — order orchestrator (`saga_states`) + reserve→ödeme→aktivasyon + compensation + timeout. Bkz. [SAGA.md](SAGA.md).
 - **subscription / payment** saga akışına participant olarak dahil (outbox/inbox + `audit_log`).
 - **Rate limiting** — gateway'de Bucket4j + Redis; user (JWT `sub`) / IP başına 100 req/dk; 429 + `Retry-After` + `X-RateLimit-*`. Bkz. §10.
@@ -371,6 +372,7 @@ OTel trace korelasyonu · FE SPA (docx'te scope-out — BFF konusunu sergilemek 
 - ✅ **İlk entegrasyon testi (kalıp)** — `OrderEventHandlerIntegrationTest`: gerçek Postgres (Testcontainers `@ServiceConnection`) + Flyway; inbox idempotency (aynı `eventId` × 2 → tek `bill_cycle`). Diğer consumer'lara aynı kalıp uygulanacak.
 - ✅ **Saga entegrasyon testleri** — `OrderSagaIntegrationTest` (order-service, 4 test): gerçek Postgres + gerçek Kafka (Testcontainers 2.x); sipariş gerçek giriş yolundan verilir (Mediator, Feign mock), participant'ları test oynar. Happy-path `FULFILLED`, aktivasyon hatası (`RefundPayment`+`ReleaseMsisdn`→`CANCELLED`), ödeme hatası (yalnız release), timeout süpürücü. `_FAIL` kuralı ve >1000 TRY reddi gibi participant davranışları subscription/payment slice IT'lerinde.
 - ✅ **Inbox-idempotency yayılımı** — billing'deki kalıp 4 consumer'a uygulandı: subscription (4), payment (4), notification (3), usage (3); iş tabloları + reply outbox birlikte assert edilir.
+- ✅ **Kota zinciri testleri (G1)** — `QuotaServiceIntegrationTest` (6): hak fotoğrafı/kota açılışı idempotency, düşüm, %80/%100 eşik (eşik başına tek event), aşım event'leri, aylık lazy rollover; notification/billing tarafında `QuotaEventHandler`/`OverageEventHandler` inbox IT'leri + bill-run aşım kalemi matematiği. Not: testlerde `logback-test.xml` (usage/notification/billing) loki4j appender'ını kapatır — aynı JVM'de ikinci Spring context'i Loki kapalıyken düşüren "Logback configuration error" bu yüzden artık oluşmaz.
 - **Saga sertleştirme** — backlog (bkz. Faz 2 notu ve "DEVAM NOKTASI"); güvence ağı hazır, docx boşlukları (Faz 3.5) öne alındı.
 - **Contract / API test** — OpenAPI spec doğrulama; kritik akışlar için Postman/newman koleksiyonu CI'da.
 - **Coverage gate** — kapsam büyüdükçe JaCoCo eşiği (örn. %70) build'de zorunlu hale getirilecek.

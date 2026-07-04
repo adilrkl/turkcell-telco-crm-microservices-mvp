@@ -16,9 +16,11 @@ import org.springframework.web.bind.annotation.RestController;
 import com.turkcell.commonlib.cache.RestPage;
 import com.turkcell.commonlib.cqrs.Mediator;
 import com.turkcell.commonlib.dto.ApiResponse;
+import com.turkcell.usageservice.application.features.quota.query.get.GetSubscriptionQuotaQuery;
 import com.turkcell.usageservice.application.features.usage.command.record.RecordUsageCommand;
 import com.turkcell.usageservice.application.features.usage.query.list.ListUsageRecordsQuery;
 import com.turkcell.usageservice.application.features.usage.query.summary.GetSubscriptionUsageSummaryQuery;
+import com.turkcell.usageservice.dto.QuotaResponse;
 import com.turkcell.usageservice.dto.RecordUsageRequest;
 import com.turkcell.usageservice.dto.UsageRecordResponse;
 import com.turkcell.usageservice.dto.UsageSummaryResponse;
@@ -52,6 +54,13 @@ public class UsageController {
     public ApiResponse<RestPage<UsageRecordResponse>> listRecords(@RequestParam UUID subscriptionId,
                                                                   Pageable pageable) {
         return ApiResponse.ok(mediator.send(new ListUsageRecordsQuery(subscriptionId, pageable)));
+    }
+
+    /** Bir aboneligin icinde bulunulan donem (takvim ayi) kalan kotasi (CSR/ADMIN). */
+    @GetMapping("/quota")
+    @PreAuthorize("hasAnyRole('CSR','ADMIN')")
+    public ApiResponse<QuotaResponse> quota(@RequestParam UUID subscriptionId) {
+        return ApiResponse.ok(mediator.send(new GetSubscriptionQuotaQuery(subscriptionId)));
     }
 
     /** Bir abonelik icin [from, to) donem kullanim ozeti (CSR/ADMIN). Tarihler ISO-8601 (orn. 2026-07-01T00:00:00Z). */

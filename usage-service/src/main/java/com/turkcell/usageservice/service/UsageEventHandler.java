@@ -9,13 +9,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.turkcell.usageservice.application.features.usage.mapper.UsageRecordMapper;
 import com.turkcell.usageservice.entity.ProcessedEvent;
+import com.turkcell.usageservice.entity.UsageRecord;
 import com.turkcell.usageservice.event.UsageRecordedEvent;
 import com.turkcell.usageservice.repository.ProcessedEventRepository;
 import com.turkcell.usageservice.repository.UsageRecordRepository;
 
 /**
- * UsageRecorded isleyicisi. Inbox kontrolu + usage_records yazimi AYNI transaction'da
- * (idempotent: ayni eventId tekrar gelirse atlanir).
+ * UsageRecorded isleyicisi. Inbox kontrolu + usage_records yazimi + kota dusumu
+ * AYNI transaction'da (idempotent: ayni eventId tekrar gelirse atlanir).
  */
 @Service
 public class UsageEventHandler {
@@ -25,13 +26,16 @@ public class UsageEventHandler {
     private final ProcessedEventRepository processedEventRepository;
     private final UsageRecordRepository usageRecordRepository;
     private final UsageRecordMapper mapper;
+    private final QuotaService quotaService;
 
     public UsageEventHandler(ProcessedEventRepository processedEventRepository,
                              UsageRecordRepository usageRecordRepository,
-                             UsageRecordMapper mapper) {
+                             UsageRecordMapper mapper,
+                             QuotaService quotaService) {
         this.processedEventRepository = processedEventRepository;
         this.usageRecordRepository = usageRecordRepository;
         this.mapper = mapper;
+        this.quotaService = quotaService;
     }
 
     @Transactional
@@ -41,7 +45,9 @@ public class UsageEventHandler {
             return;
         }
 
-        usageRecordRepository.save(mapper.fromEvent(event));
+        UsageRecord record = usageRecordRepository.save(mapper.fromEvent(event));
+        quotaService.applyUsage(record.getSubscriptionId(), record.getType(),
+                record.getQuantity(), record.getRecordedAt());
 
         ProcessedEvent processed = new ProcessedEvent();
         processed.setEventId(event.eventId());

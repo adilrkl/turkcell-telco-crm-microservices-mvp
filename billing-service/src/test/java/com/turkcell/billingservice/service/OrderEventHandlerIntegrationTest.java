@@ -49,7 +49,8 @@ class OrderEventHandlerIntegrationTest {
         UUID customerId = UUID.randomUUID();
         UUID subscriptionId = UUID.randomUUID();
         OrderConfirmed event = new OrderConfirmed(eventId, UUID.randomUUID(), customerId,
-                subscriptionId, "TARIFE_M", "905550001122", new BigDecimal("249.90"), "TRY");
+                subscriptionId, "TARIFE_M", "905550001122", new BigDecimal("249.90"), "TRY",
+                1500, 1000, 15360);
 
         handler.handle(event);
         handler.handle(event); // redelivery simulasyonu (at-least-once)
@@ -80,6 +81,7 @@ class OrderEventHandlerIntegrationTest {
 
     private static OrderConfirmed confirmed() {
         return new OrderConfirmed(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                UUID.randomUUID(), "TARIFE_M", "905550009999", new BigDecimal("100.00"), "TRY");
+                UUID.randomUUID(), "TARIFE_M", "905550009999", new BigDecimal("100.00"), "TRY",
+                1500, 1000, 15360);
     }
 }

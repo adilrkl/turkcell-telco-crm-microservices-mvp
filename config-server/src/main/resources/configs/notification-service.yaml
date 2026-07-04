@@ -4,14 +4,18 @@ spring:
     username: ${DB_USER:notification_user}
     password: ${DB_PASS:secret}
     driver-class-name: org.postgresql.Driver
-  # --- order-events tuketicisi (OrderConfirmed/OrderCancelled -> bildirim; inbox idempotent) ---
+  # --- Tuketiciler: order-events (OrderConfirmed/OrderCancelled -> bildirim) +
+  #     quota-events (QuotaThresholdReached -> %80/%100 esik SMS'i). Inbox idempotent.
   cloud:
     function:
-      definition: consumeOrderEvents
+      definition: consumeOrderEvents;consumeQuotaEvents
     stream:
       bindings:
         consumeOrderEvents-in-0:
           destination: order-events
+          group: notification-service-group
+        consumeQuotaEvents-in-0:
+          destination: quota-events
           group: notification-service-group
       kafka:
         binder:

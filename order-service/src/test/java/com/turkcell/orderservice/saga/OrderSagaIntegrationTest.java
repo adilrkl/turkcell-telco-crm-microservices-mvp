@@ -306,7 +306,8 @@ class OrderSagaIntegrationTest {
         when(customerClient.getById(customerId)).thenReturn(new CustomerEnvelope(
                 new CustomerView(customerId, "INDIVIDUAL", "Demo", "Musteri", "ACTIVE")));
         when(catalogClient.getByCode(tariffCode)).thenReturn(new TariffEnvelope(
-                new TariffView(tariffCode, "Demo Tarife", new BigDecimal(monthlyFee), "ACTIVE")));
+                new TariffView(tariffCode, "Demo Tarife", new BigDecimal(monthlyFee), "ACTIVE",
+                        1500, 1000, 15360)));
 
         OrderResponse response = mediator.send(new PlaceOrderCommand(customerId, tariffCode));
         assertThat(response.status()).isEqualTo(OrderStatus.PENDING_PAYMENT);

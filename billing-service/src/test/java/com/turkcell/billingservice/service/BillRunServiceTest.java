@@ -20,15 +20,17 @@ import org.mockito.ArgumentCaptor;
 import com.turkcell.billingservice.entity.BillCycle;
 import com.turkcell.billingservice.entity.Invoice;
 import com.turkcell.billingservice.entity.InvoiceLine;
+import com.turkcell.billingservice.entity.PendingCharge;
 import com.turkcell.billingservice.repository.BillCycleRepository;
 import com.turkcell.billingservice.repository.InvoiceLineRepository;
 import com.turkcell.billingservice.repository.InvoiceRepository;
+import com.turkcell.billingservice.repository.PendingChargeRepository;
 import com.turkcell.billingservice.saga.OutboxWriter;
 import com.turkcell.commonlib.saga.ChargeInvoiceCommand;
 import com.turkcell.commonlib.saga.SagaTopics;
 
 /**
- * Bill-run fatura matematigi + dongu ilerletme + auto-pay komutu.
+ * Bill-run fatura matematigi + dongu ilerletme + auto-pay komutu + asim kalemleri (G1).
  * (Canli e2e ile dogrulanan degerlerin regresyon guvencesi: 249.90 -> KDV %20 -> 299.88.)
  */
 class BillRunServiceTest {
@@ -36,6 +38,7 @@ class BillRunServiceTest {
     private BillCycleRepository billCycleRepository;
     private InvoiceRepository invoiceRepository;
     private InvoiceLineRepository invoiceLineRepository;
+    private PendingChargeRepository pendingChargeRepository;
     private OutboxWriter outbox;
     private BillRunService service;
 
@@ -44,8 +47,10 @@ class BillRunServiceTest {
         billCycleRepository = mock(BillCycleRepository.class);
         invoiceRepository = mock(InvoiceRepository.class);
         invoiceLineRepository = mock(InvoiceLineRepository.class);
+        pendingChargeRepository = mock(PendingChargeRepository.class);
         outbox = mock(OutboxWriter.class);
-        service = new BillRunService(billCycleRepository, invoiceRepository, invoiceLineRepository, outbox);
+        service = new BillRunService(billCycleRepository, invoiceRepository, invoiceLineRepository,
+                pendingChargeRepository, outbox);
 
         // JPA save id atar; unit testte taklit edilir.
         when(invoiceRepository.save(any())).thenAnswer(inv -> {
@@ -53,17 +58,12 @@ class BillRunServiceTest {
             i.setId(UUID.randomUUID());
             return i;
         });
+        when(pendingChargeRepository.findPendingForUpdate(any())).thenReturn(List.of());
     }
 
     @Test
     void issuesInvoiceWithTaxAdvancesCycleAndEnqueuesAutoPay() {
-        BillCycle cycle = new BillCycle();
-        cycle.setId(UUID.randomUUID());
-        cycle.setCustomerId(UUID.randomUUID());
-        cycle.setSubscriptionId(UUID.randomUUID());
-        cycle.setMonthlyFee(new BigDecimal("249.90"));
-        cycle.setCurrency("TRY");
-        cycle.setNextRunDate(LocalDate.of(2026, 7, 3));
+        BillCycle cycle = cycle("249.90", LocalDate.of(2026, 7, 3));
         when(billCycleRepository.findDue(any(), anyInt())).thenReturn(List.of(cycle));
 
         service.runDueCycles();
@@ -101,10 +101,83 @@ class BillRunServiceTest {
     }
 
     @Test
+    void addsPendingOverageAsTypedLinesAndMarksBilled() {
+        BillCycle cycle = cycle("249.90", LocalDate.of(2026, 7, 3));
+        when(billCycleRepository.findDue(any(), anyInt())).thenReturn(List.of(cycle));
+
+        // Ayni tipte iki + farkli tipte bir asim: VOICE 10+5 dk = 7.50, DATA 100 MB = 5.00.
+        PendingCharge voice1 = charge(cycle.getSubscriptionId(), "VOICE", "10", "0.50", "5.00");
+        PendingCharge voice2 = charge(cycle.getSubscriptionId(), "VOICE", "5", "0.50", "2.50");
+        PendingCharge data = charge(cycle.getSubscriptionId(), "DATA", "100", "0.05", "5.00");
+        when(pendingChargeRepository.findPendingForUpdate(cycle.getSubscriptionId()))
+                .thenReturn(List.of(voice1, voice2, data));
+
+        service.runDueCycles();
+
+        // subTotal = 249.90 + 12.50 = 262.40; KDV %20 = 52.48; genel toplam 314.88.
+        ArgumentCaptor<Invoice> invoiceCaptor = ArgumentCaptor.forClass(Invoice.class);
+        verify(invoiceRepository).save(invoiceCaptor.capture());
+        Invoice invoice = invoiceCaptor.getValue();
+        assertThat(invoice.getSubTotal()).isEqualByComparingTo("262.40");
+        assertThat(invoice.getTax()).isEqualByComparingTo("52.48");
+        assertThat(invoice.getGrandTotal()).isEqualByComparingTo("314.88");
+
+        // Kalemler: aylik ucret + VOICE asimi (tek satirda toplanmis) + DATA asimi.
+        ArgumentCaptor<InvoiceLine> lineCaptor = ArgumentCaptor.forClass(InvoiceLine.class);
+        verify(invoiceLineRepository, org.mockito.Mockito.times(3)).save(lineCaptor.capture());
+        List<InvoiceLine> lines = lineCaptor.getAllValues();
+        assertThat(lines.get(0).getLineTotal()).isEqualByComparingTo("249.90");
+        assertThat(lines.get(1).getDescription()).contains("VOICE").contains("15 dk");
+        assertThat(lines.get(1).getQuantity()).isEqualByComparingTo("15");
+        assertThat(lines.get(1).getLineTotal()).isEqualByComparingTo("7.50");
+        assertThat(lines.get(2).getDescription()).contains("DATA");
+        assertThat(lines.get(2).getLineTotal()).isEqualByComparingTo("5.00");
+
+        // Asimlar BILLED'e cekildi ve faturaya baglandi.
+        assertThat(List.of(voice1, voice2, data))
+                .allSatisfy(c -> {
+                    assertThat(c.getStatus()).isEqualTo("BILLED");
+                    assertThat(c.getInvoiceId()).isEqualTo(invoice.getId());
+                });
+        verify(pendingChargeRepository).saveAll(List.of(voice1, voice2, data));
+
+        // Auto-pay asim dahil genel toplami tahsil eder.
+        ArgumentCaptor<Object> payloadCaptor = ArgumentCaptor.forClass(Object.class);
+        verify(outbox).enqueue(eq(SagaTopics.PAYMENT_COMMANDS), eq("ChargeInvoiceCommand"),
+                eq(invoice.getId()), payloadCaptor.capture());
+        assertThat(((ChargeInvoiceCommand) payloadCaptor.getValue()).amount()).isEqualByComparingTo("314.88");
+    }
+
+    @Test
     void noDueCyclesDoesNothing() {
         when(billCycleRepository.findDue(any(), anyInt())).thenReturn(List.of());
         service.runDueCycles();
         verify(invoiceRepository, org.mockito.Mockito.never()).save(any());
         verify(outbox, org.mockito.Mockito.never()).enqueue(any(), any(), any(), any());
+    }
+
+    private static BillCycle cycle(String monthlyFee, LocalDate nextRunDate) {
+        BillCycle cycle = new BillCycle();
+        cycle.setId(UUID.randomUUID());
+        cycle.setCustomerId(UUID.randomUUID());
+        cycle.setSubscriptionId(UUID.randomUUID());
+        cycle.setMonthlyFee(new BigDecimal(monthlyFee));
+        cycle.setCurrency("TRY");
+        cycle.setNextRunDate(nextRunDate);
+        return cycle;
+    }
+
+    private static PendingCharge charge(UUID subscriptionId, String type,
+                                        String quantity, String unitPrice, String amount) {
+        PendingCharge charge = new PendingCharge();
+        charge.setId(UUID.randomUUID());
+        charge.setSubscriptionId(subscriptionId);
+        charge.setCustomerId(UUID.randomUUID());
+        charge.setType(type);
+        charge.setQuantity(new BigDecimal(quantity));
+        charge.setUnitPrice(new BigDecimal(unitPrice));
+        charge.setAmount(new BigDecimal(amount));
+        charge.setStatus("PENDING");
+        return charge;
     }
 }
