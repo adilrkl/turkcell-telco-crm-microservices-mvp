@@ -57,6 +57,12 @@
       <groupId>org.flywaydb</groupId>
       <artifactId>flyway-database-postgresql</artifactId>
     </dependency>
+    <!-- Fatura PDF uretimi (G6, FR-23). BOM yonetmiyor; surum kok pom'da. -->
+    <dependency>
+      <groupId>com.github.librepdf</groupId>
+      <artifactId>openpdf</artifactId>
+      <version>${openpdf.version}</version>
+    </dependency>
 
     <!-- Entegrasyon testleri: gercek Postgres (Testcontainers) + @ServiceConnection.
          Boot 4'te @DataJpaTest ayri test starter'indadir (teknoloji-bazli test starter'lari). -->

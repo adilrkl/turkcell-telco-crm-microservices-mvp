@@ -10,11 +10,17 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+
 import com.turkcell.billingservice.application.features.billcycle.query.list.ListBillCyclesQuery;
 import com.turkcell.billingservice.application.features.invoice.query.getbyid.GetInvoiceByIdQuery;
 import com.turkcell.billingservice.application.features.invoice.query.list.ListInvoicesQuery;
+import com.turkcell.billingservice.application.features.invoice.query.pdf.GetInvoicePdfQuery;
 import com.turkcell.billingservice.dto.BillCycleResponse;
 import com.turkcell.billingservice.dto.InvoiceDetailResponse;
+import com.turkcell.billingservice.dto.InvoicePdfFile;
 import com.turkcell.billingservice.dto.InvoiceResponse;
 import com.turkcell.commonlib.cache.RestPage;
 import com.turkcell.commonlib.cqrs.Mediator;
@@ -45,6 +51,20 @@ public class BillingController {
     @PreAuthorize("hasAnyRole('BILLING_ADMIN','CSR','ADMIN')")
     public ApiResponse<InvoiceDetailResponse> getInvoice(@PathVariable UUID id) {
         return ApiResponse.ok(mediator.send(new GetInvoiceByIdQuery(id)));
+    }
+
+    /**
+     * Fatura PDF'i (G6, FR-23): OpenPDF ile istek aninda uretilir, binary doner.
+     * Saklama/pdf_ref doldurma MinIO ile Faz 6'da; su an her istek yeniden uretir (deterministik).
+     */
+    @GetMapping("/invoices/{id}/pdf")
+    @PreAuthorize("hasAnyRole('BILLING_ADMIN','CSR','ADMIN')")
+    public ResponseEntity<byte[]> getInvoicePdf(@PathVariable UUID id) {
+        InvoicePdfFile pdf = mediator.send(new GetInvoicePdfQuery(id));
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + pdf.fileName() + "\"")
+                .body(pdf.content());
     }
 
     /** Sayfali fatura dongusu listesi; customerId filtreli. */

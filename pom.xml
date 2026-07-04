@@ -42,6 +42,8 @@
     <springdoc-openapi.version>3.0.3</springdoc-openapi.version>
     <!-- BOM disinda kalan tek observability bagimliligi: Loki logback appender. -->
     <loki-logback.version>1.6.0</loki-logback.version>
+    <!-- Fatura PDF (G6, FR-23) - yalnizca billing-service kullanir. -->
+    <openpdf.version>2.0.3</openpdf.version>
     <jacoco.version>0.8.12</jacoco.version>
     <!-- Boot 4 BOM'u testcontainers surumlerini yonetmiyor. 2.x zorunlu:
          Docker Engine 29 eski API'yi reddediyor (1.x'in docker-java'si 400 aliyor). -->
