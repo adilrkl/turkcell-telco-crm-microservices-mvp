@@ -16,6 +16,7 @@ import { PlusOutlined, EditOutlined } from "@ant-design/icons";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import dayjs, { Dayjs } from "dayjs";
 import { api } from "../../lib/axios";
+import { apiErrorMessage } from "../../lib/apiError";
 import type { ApiResponse, CustomerResponse, RestPage } from "../../api/types";
 
 interface CustomerFormValues {
@@ -44,6 +45,9 @@ export function CustomersPage() {
   const [editing, setEditing] = useState<CustomerResponse | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [form] = Form.useForm<CustomerFormValues>();
+  // Kimlik etiketi tip'e gore degisir (INDIVIDUAL->TCKN, CORPORATE->VKN); G9'da zorunlu.
+  const watchedType = Form.useWatch("type", form);
+  const idLabel = watchedType === "CORPORATE" ? "VKN" : "TCKN";
 
   const { data, isFetching } = useQuery({
     queryKey: ["customers", page, pageSize, q],
@@ -72,7 +76,8 @@ export function CustomersPage() {
       setModalOpen(false);
       void queryClient.invalidateQueries({ queryKey: ["customers"] });
     },
-    onError: () => message.error("Kaydetme basarisiz"),
+    // Backend dogrulama mesajini (orn. G9 "Gecersiz TCKN" 422) yuzeye cikar.
+    onError: (error) => message.error(apiErrorMessage(error, "Kaydetme basarisiz")),
   });
 
   const openCreate = () => {
@@ -132,7 +137,7 @@ export function CustomersPage() {
           { title: "Ad", dataIndex: "firstName" },
           { title: "Soyad", dataIndex: "lastName" },
           { title: "Tip", dataIndex: "type" },
-          { title: "TCKN", dataIndex: "identityNumber", render: (v) => v ?? "-" },
+          { title: "Kimlik No", dataIndex: "identityNumber", render: (v) => v ?? "-" },
           {
             title: "Durum",
             dataIndex: "status",
@@ -155,7 +160,7 @@ export function CustomersPage() {
         onCancel={() => setModalOpen(false)}
         onOk={() => form.submit()}
         confirmLoading={save.isPending}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical" onFinish={(values) => save.mutate(values)}>
           <Form.Item name="type" label="Tip" rules={[{ required: true }]} initialValue="INDIVIDUAL">
@@ -173,8 +178,12 @@ export function CustomersPage() {
           <Form.Item name="lastName" label="Soyad" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
-          <Form.Item name="identityNumber" label="TCKN">
-            <Input maxLength={20} />
+          <Form.Item
+            name="identityNumber"
+            label={idLabel}
+            rules={[{ required: true, whitespace: true, message: `${idLabel} girin` }]}
+          >
+            <Input maxLength={20} placeholder={watchedType === "CORPORATE" ? "10 haneli VKN" : "11 haneli TCKN"} />
           </Form.Item>
           <Form.Item name="dateOfBirth" label="Dogum tarihi">
             <DatePicker style={{ width: "100%" }} />

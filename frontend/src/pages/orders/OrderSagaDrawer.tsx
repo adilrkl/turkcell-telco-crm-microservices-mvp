@@ -12,7 +12,7 @@ export const ORDER_STATUS_COLOR: Record<string, string> = {
   CANCELLED: "red",
 };
 
-const TERMINAL_STATUSES = ["FULFILLED", "CANCELLED"];
+export const TERMINAL_STATUSES = ["FULFILLED", "CANCELLED"];
 
 type StepStatus = "wait" | "process" | "finish" | "error";
 
@@ -27,7 +27,7 @@ interface StepsView {
  * CANCELLED'da hangi adimin patladigi API'de yoktur; canli izlemede gorulen son
  * non-terminal durumdan (PENDING_PAYMENT -> odeme/rezervasyon, PAID -> aktivasyon) cikarilir.
  */
-function buildStepsView(status: string, lastActive: string | null): StepsView {
+export function buildStepsView(status: string, lastActive: string | null): StepsView {
   const none: (string | undefined)[] = [undefined, undefined, undefined, undefined];
   switch (status) {
     case "PENDING_PAYMENT":

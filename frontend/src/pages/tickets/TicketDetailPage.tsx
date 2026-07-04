@@ -45,16 +45,16 @@ const PRIORITY_COLOR: Record<string, string> = {
 };
 
 /** Backend'deki gecis matrisinin aynasi (TicketBusinessRules). CLOSED terminaldir. */
-const TRANSITIONS: Record<string, string[]> = {
+export const TRANSITIONS: Record<string, string[]> = {
   OPEN: ["IN_PROGRESS", "CLOSED"],
   IN_PROGRESS: ["RESOLVED", "CLOSED"],
   RESOLVED: ["IN_PROGRESS", "CLOSED"],
   CLOSED: [],
 };
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-function transitionLabel(current: string, target: string): string {
+export function transitionLabel(current: string, target: string): string {
   if (target === "IN_PROGRESS") {
     return current === "RESOLVED" ? "Yeniden ac" : "Isleme al";
   }

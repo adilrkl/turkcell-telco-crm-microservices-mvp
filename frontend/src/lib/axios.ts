@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { AxiosError } from "axios";
 import { loginRedirect } from "../auth/login";
 
 /**
@@ -15,14 +15,17 @@ export const api = axios.create({
   xsrfHeaderName: "X-XSRF-TOKEN",
 });
 
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    const status = error.response?.status;
-    const url: string = error.config?.url ?? "";
-    if (status === 401 && !url.startsWith("/api/me")) {
-      loginRedirect();
-    }
-    return Promise.reject(error);
-  },
-);
+/**
+ * Response error interceptor mantigi (test edilebilir olsun diye ayri fonksiyon):
+ * /api/me disindaki bir 401'de login'e yonlendirir, hatayi her durumda reject eder.
+ */
+export function onResponseError(error: AxiosError): Promise<never> {
+  const status = error.response?.status;
+  const url: string = error.config?.url ?? "";
+  if (status === 401 && !url.startsWith("/api/me")) {
+    loginRedirect();
+  }
+  return Promise.reject(error);
+}
+
+api.interceptors.response.use((response) => response, onResponseError);
