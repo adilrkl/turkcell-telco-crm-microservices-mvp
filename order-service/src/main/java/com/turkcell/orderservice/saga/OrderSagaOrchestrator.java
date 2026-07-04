@@ -28,6 +28,7 @@ import com.turkcell.commonlib.saga.SubscriptionActivationFailed;
 import com.turkcell.orderservice.entity.Order;
 import com.turkcell.orderservice.entity.ProcessedEvent;
 import com.turkcell.orderservice.entity.SagaState;
+import com.turkcell.orderservice.exception.InvalidOrderException;
 import com.turkcell.orderservice.repository.OrderRepository;
 import com.turkcell.orderservice.repository.ProcessedEventRepository;
 import com.turkcell.orderservice.repository.SagaStateRepository;
@@ -197,20 +198,44 @@ public class OrderSagaOrchestrator {
             String step = saga.getCurrentStep();
             UUID orderId = saga.getOrderId();
             log.warn("Saga timeout order={} step={} -> iptal + compensation", orderId, step);
-            if (SagaSteps.PAYMENT_COMPLETED.equals(step)) {
-                outbox.enqueue(SagaTopics.PAYMENT_COMMANDS, "RefundPaymentCommand", orderId,
-                        new RefundPaymentCommand(UUID.randomUUID(), orderId, "saga timeout"));
-                outbox.enqueue(SagaTopics.SUBSCRIPTION_COMMANDS, "ReleaseMsisdnCommand", orderId,
-                        new ReleaseMsisdnCommand(UUID.randomUUID(), orderId, "saga timeout"));
-            } else if (SagaSteps.MSISDN_RESERVED.equals(step)) {
-                outbox.enqueue(SagaTopics.SUBSCRIPTION_COMMANDS, "ReleaseMsisdnCommand", orderId,
-                        new ReleaseMsisdnCommand(UUID.randomUUID(), orderId, "saga timeout"));
-            }
+            compensateForStep(step, orderId, "saga timeout");
             cancel(saga, orderId, "Saga zaman asimina ugradi (step=" + step + ")");
         }
     }
 
+    /**
+     * Manuel iptal (G5, docx §8.3): terminal-oncesi saga'yi iptal eder ve ulasilan adima gore
+     * compensation tetikler (timeout supurucusuyle ayni kurallar). Cagiran (command handler)
+     * order'in terminal olmadigini dogrulamistir; saga adimi da ayni transaction'da ilerledigi
+     * icin burada tekrar kontrol savunma amaclidir.
+     */
+    @Transactional
+    public void cancelManually(UUID orderId, String reason) {
+        SagaState saga = sagaRepository.findByOrderId(orderId)
+                .orElseThrow(() -> new InvalidOrderException("Saga bulunamadi: " + orderId));
+        String step = saga.getCurrentStep();
+        if (SagaSteps.TERMINAL.contains(step)) {
+            throw new InvalidOrderException("Siparis terminal durumda, iptal edilemez (step=" + step + ")");
+        }
+        log.info("order={} step={} manuel iptal -> compensation", orderId, step);
+        compensateForStep(step, orderId, "manual cancel");
+        cancel(saga, orderId, reason);
+    }
+
     // --- yardimcilar ---
+
+    /** Ulasilan adima gore compensation: odeme alindiysa refund + release, yalniz rezervse release. */
+    private void compensateForStep(String step, UUID orderId, String reason) {
+        if (SagaSteps.PAYMENT_COMPLETED.equals(step)) {
+            outbox.enqueue(SagaTopics.PAYMENT_COMMANDS, "RefundPaymentCommand", orderId,
+                    new RefundPaymentCommand(UUID.randomUUID(), orderId, reason));
+            outbox.enqueue(SagaTopics.SUBSCRIPTION_COMMANDS, "ReleaseMsisdnCommand", orderId,
+                    new ReleaseMsisdnCommand(UUID.randomUUID(), orderId, reason));
+        } else if (SagaSteps.MSISDN_RESERVED.equals(step)) {
+            outbox.enqueue(SagaTopics.SUBSCRIPTION_COMMANDS, "ReleaseMsisdnCommand", orderId,
+                    new ReleaseMsisdnCommand(UUID.randomUUID(), orderId, reason));
+        }
+    }
 
     private void cancel(SagaState saga, UUID orderId, String reason) {
         advance(saga, SagaSteps.CANCELLED, ctx(saga));

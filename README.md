@@ -278,11 +278,11 @@ Temel mimari oturdu: config, service discovery, gateway + BFF, Keycloak güvenli
 Outbox/Inbox, Saga orchestration, mediator-tabanlı CQRS, rate limiting ve observability entegre.
 Frontend de artık bu repodadır (monorepo, `frontend/`); mimari kararları için [FRONTEND.md](FRONTEND.md).
 
-### 📍 DEVAM NOKTASI (son güncelleme: 2026-07-04, G4 abonelik yaşam döngüsü sonrası)
+### 📍 DEVAM NOKTASI (son güncelleme: 2026-07-04, G5 manuel sipariş iptali sonrası)
 
-**Durum:** Faz 1 ✅ · Faz 2 ✅ · Faz 3 ilerliyor · **Faz 3.5: G1 ✅ G2 ✅ G3 ✅ G4 ✅** (kota zinciri +
-fatura bildirimleri + KYC + abonelik yaşam döngüsü; 75 test yeşil) · FE Sprint 3 merge edildi (PR #21) ·
-Sıradaki backend işi: **G5 manuel sipariş iptali** (typed-client geçişi bilinçli olarak Faz 4 CI kararına ertelendi).
+**Durum:** Faz 1 ✅ · Faz 2 ✅ · Faz 3 ilerliyor · **Faz 3.5: G1 ✅ G2 ✅ G3 ✅ G4 ✅ G5 ✅** (kota zinciri +
+fatura bildirimleri + KYC + abonelik yaşam döngüsü + manuel sipariş iptali; 79 test yeşil) · FE Sprint 3 merge edildi (PR #21) ·
+Sıradaki backend işi: **G6 fatura PDF** (typed-client geçişi bilinçli olarak Faz 4 CI kararına ertelendi).
 > ⚠️ Davranış değişikliği (G3): **yeni müşteri artık `PENDING` doğar**; sipariş verebilmesi için belge
 > yükleme + `POST /api/customers/{id}/kyc/approve` (ADMIN) gerekir. Demo seed müşterisi ACTIVE kalır.
 
@@ -297,7 +297,7 @@ Kural: [FRONTEND.md](FRONTEND.md) FE track'ine, bu README'nin yol haritası back
 
 | Sıradaki iş | Track A — Frontend (`frontend/`) | Track B — Backend |
 |---|---|---|
-| **1 (buradan devam)** | Sprint 4: Billing (fatura listesi + kalem detayı) ve Subscriptions sayfaları; G-işleri API çıkardıkça UI bağlanır (G1 kota kartı hazır: `GET /api/usage/quota`; G3 KYC onay/red butonları + belge listesi hazır; G4 abonelik aksiyonları hazır: `POST /api/subscriptions/{id}/suspend\|reactivate\|terminate`) | **Faz 3.5:** G1 ✅ G2 ✅ G3 ✅ G4 ✅ → sıradaki **G5 manuel sipariş iptali** (tablo aşağıda) |
+| **1 (buradan devam)** | Sprint 4: Billing (fatura listesi + kalem detayı) ve Subscriptions sayfaları; G-işleri API çıkardıkça UI bağlanır (G1 kota kartı hazır: `GET /api/usage/quota`; G3 KYC onay/red butonları + belge listesi hazır; G4 abonelik aksiyonları hazır: `POST /api/subscriptions/{id}/suspend\|reactivate\|terminate`; G5 sipariş iptal butonu hazır: `POST /api/orders/{id}/cancel`) | **Faz 3.5:** G1 ✅ G2 ✅ G3 ✅ G4 ✅ G5 ✅ → sıradaki **G6 fatura PDF** (tablo aşağıda) |
 | 2 | Typed-client (`generate:api`) geçişi — Faz 4 CI kararıyla birlikte | **Faz 4:** Dockerfile + GitHub Actions CI (test gate) — Faz 3.5 ile paralel yürüyebilir |
 
 **Açık kararlar (bloklamıyor):** CUSTOMER self-servisi için kullanıcı↔müşteri bağlantısı (Keycloak `sub` ≠ `customerId`;
@@ -310,7 +310,7 @@ docker compose up -d                      # altyapı (keycloak realm değiştiys
 ./mvnw clean install -DskipTests          # JAVA_HOME = JDK 21 olmalı
 # servisleri sırayla başlat (bkz. "Başlangıç" bölümü) — 14 servis
 cd frontend && npm install && npm run dev # http://localhost:5173 → "Giriş yap" → csruser/test12345
-./mvnw test                               # 75 test (Kafka'lı saga IT dahil; Docker açık olmalı)
+./mvnw test                               # 79 test (Kafka'lı saga IT dahil; Docker açık olmalı)
 ```
 > Windows notu: Docker Desktop'ta Testcontainers "Docker bulunamadı" derse `~/.testcontainers.properties`
 > içine `docker.host=npipe:////./pipe/dockerDesktopLinuxEngine` yaz (Linux/CI'da gerekmez).
@@ -326,7 +326,7 @@ MVP analiz dokümanıyla yapılan kıyasın (2026-07-04) çıktısı. Sıra = ö
 | **G2 ✅** | **Fatura bildirimleri** — TAMAMLANDI | senaryo 14.2, §8.8 | bill-run artık `InvoiceGenerated` domain event'i de yayınlar (billing outbox → `invoice-events`; billing'in kendi consumer'ı tipi atlar); `InvoicePaid`/`InvoicePaymentFailed` reply'ları customerId/amount/currency taşır (event-carried state, payment `ChargeInvoiceCommand`'dan bilir); notification `invoice-events`'i kendi group'uyla dinleyip üçünü de EMAIL (mock) bildirimine çevirir (`INVOICE_GENERATED/INVOICE_PAID/INVOICE_PAYMENT_FAILED` şablonları, V5); inbox-idempotency IT aynı kalıpla |
 | **G3 ✅** | **KYC mini akışı** — TAMAMLANDI | FR-02/03, senaryo 14.1, §10.1 | `Address`/`Document` varlıkları (V1 tabloları artık kullanılıyor) + adres/belge endpoint'leri (`POST/GET /{id}/addresses`, `POST/GET /{id}/documents`; belge fileRef mock, MinIO Faz 6); yeni müşteri **PENDING** doğar; `POST /{id}/kyc/approve\|reject` (ADMIN) — onay şartı: PENDING + ≥1 belge → ACTIVE + belgeler `verifiedAt` damgalı + `CustomerKYCApproved` outbox'tan `customer-events`'e (customer-service'e stream-kafka + outbox/poller eklendi); notification "hesabınız aktif" SMS'i atar (`KYC_APPROVED` şablonu, V6); red → REJECTED. Order ACTIVE şartını zaten aradığı için onay öncesi sipariş engellenir |
 | **G4 ✅** | **Abonelik yaşam döngüsü** — TAMAMLANDI | FR-14, §8.4 | `POST /api/subscriptions/{id}/suspend\|reactivate\|terminate` (CSR/ADMIN); durum makinesi: ACTIVE→SUSPENDED (suspend), SUSPENDED→ACTIVE (reactivate, `suspendedAt` temizlenir), ACTIVE/SUSPENDED→TERMINATED (terminal; MSISDN havuza FREE döner, aktif SIM'ler DEACTIVATED); geçersiz geçiş → 409 `SUBSCRIPTION_INVALID_STATE`; audit `actorUserId` (JWT sub) ile yazılır (§13); `SubscriptionSuspended/Reactivated/Terminated` → `subscription-events` (mevcut outbox) → notification SMS (V7 şablonları). Not: `SubscriptionReactivated` docx §8.4 publish listesinde yok, simetri için bilinçli eklendi. FE Subscriptions sayfası aksiyonları Sprint 4'te bağlanır |
-| **G5** | Manuel sipariş iptali | §8.3 | `POST /api/orders/{id}/cancel` — mevcut compensation altyapısını yeniden kullanır (yalnız terminal-öncesi durumlar; ulaşılan adıma göre release/refund) |
+| **G5 ✅** | **Manuel sipariş iptali** — TAMAMLANDI | §8.3 | `POST /api/orders/{id}/cancel` (CSR/ADMIN; gövde opsiyonel `{"reason":"..."}`) — yalnız terminal-öncesi durumlar (PENDING_PAYMENT/PAID); mevcut compensation altyapısı yeniden kullanılır: ulaşılan saga adımına göre `ReleaseMsisdn` / `RefundPayment`+`ReleaseMsisdn` (timeout süpürücüsüyle aynı kurallar, ortak yardımcıya çıkarıldı); iptal + compensation komutları + `OrderCancelled` tek transaction'da outbox'a yazılır → notification mevcut consumer'la iptal bildirimi atar; FULFILLED/CANCELLED → 409 `ORDER_INVALID`. CSR/ADMIN kısıtının gerekçesi list endpoint'iyle aynı (kullanıcı↔müşteri bağlantısı yok). Not: uçan reply'lı adım için iki-fazlı iptal (compensation ack bekleme) bilinçli olarak backlog'daki saga sertleştirmeye bırakıldı |
 | **G6** | Fatura PDF | FR-23 | `GET /invoices/{id}/pdf` — basit PDF üretimi (OpenPDF vb.); MinIO/object-storage taşıması Faz 6'da kalır |
 | **G7** | Ticket otomasyonu | FR-32/33 | `TicketOpened` eventi → notification; açılışta önceliğe göre `slaDueAt` otomatik hesap + basit auto-assign |
 | **G8** | Ödeme dunning retry | FR-27 | başarısız fatura ödemeleri için 24/72/168 saat retry scheduler'ı (demo için sürelerin config'le kısaltılması) |

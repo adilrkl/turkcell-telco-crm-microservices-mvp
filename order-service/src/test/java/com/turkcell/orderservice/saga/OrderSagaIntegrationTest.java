@@ -1,6 +1,7 @@
 package com.turkcell.orderservice.saga;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.awaitility.Awaitility.await;
 import static org.mockito.Mockito.when;
 
@@ -58,6 +59,7 @@ import com.turkcell.commonlib.saga.SagaHeaders;
 import com.turkcell.commonlib.saga.SagaTopics;
 import com.turkcell.commonlib.saga.SubscriptionActivated;
 import com.turkcell.commonlib.saga.SubscriptionActivationFailed;
+import com.turkcell.orderservice.application.features.order.command.cancel.CancelOrderCommand;
 import com.turkcell.orderservice.application.features.order.command.place.PlaceOrderCommand;
 import com.turkcell.orderservice.client.CustomerClient;
 import com.turkcell.orderservice.client.ProductCatalogClient;
@@ -66,6 +68,7 @@ import com.turkcell.orderservice.client.dto.CustomerEnvelope.CustomerView;
 import com.turkcell.orderservice.client.dto.TariffEnvelope;
 import com.turkcell.orderservice.client.dto.TariffEnvelope.TariffView;
 import com.turkcell.orderservice.dto.OrderResponse;
+import com.turkcell.orderservice.exception.InvalidOrderException;
 import com.turkcell.orderservice.repository.OrderRepository;
 import com.turkcell.orderservice.repository.SagaStateRepository;
 
@@ -297,6 +300,97 @@ class OrderSagaIntegrationTest {
         // STARTED adiminda hicbir sey rezerve/charge edilmedi: compensation komutu olmamali.
         assertNeverReceived(SagaTopics.SUBSCRIPTION_COMMANDS, "ReleaseMsisdnCommand", orderId);
         assertNeverReceived(SagaTopics.PAYMENT_COMMANDS, "RefundPaymentCommand", orderId);
+    }
+
+    // --- G5: manuel iptal (POST /api/orders/{id}/cancel yolunun komutu) ---
+
+    @Test
+    @DisplayName("manuel iptal STARTED'ta: compensation yok, order CANCELLED + OrderCancelled; ikinci iptal 409")
+    void manualCancelAtStartedCancelsWithoutCompensation() {
+        UUID orderId = placeOrder(UUID.randomUUID(), "TARIFE_M", "249.90");
+        awaitEvent(SagaTopics.SUBSCRIPTION_COMMANDS, "ReserveMsisdnCommand", orderId);
+
+        OrderResponse response = mediator.send(
+                new CancelOrderCommand(orderId, UUID.randomUUID(), "musteri vazgecti"));
+        assertThat(response.status()).isEqualTo(OrderStatus.CANCELLED);
+
+        awaitOrderAndSaga(orderId, OrderStatus.CANCELLED, SagaSteps.CANCELLED);
+        OrderCancelled cancelled = json.readValue(
+                awaitEvent(SagaTopics.ORDER_EVENTS, "OrderCancelled", orderId).value(),
+                OrderCancelled.class);
+        assertThat(cancelled.reason()).contains("manuel iptal").contains("musteri vazgecti");
+
+        // STARTED'ta hicbir sey rezerve/charge edilmedi: compensation olmamali
+        // (compensation OrderCancelled ile ayni transaction/poller turunda yazilirdi).
+        assertNeverReceived(SagaTopics.SUBSCRIPTION_COMMANDS, "ReleaseMsisdnCommand", orderId);
+        assertNeverReceived(SagaTopics.PAYMENT_COMMANDS, "RefundPaymentCommand", orderId);
+
+        // Terminal (CANCELLED) siparis tekrar iptal edilemez.
+        assertThatThrownBy(() -> mediator.send(new CancelOrderCommand(orderId, UUID.randomUUID(), null)))
+                .isInstanceOf(InvalidOrderException.class)
+                .hasMessageContaining("terminal");
+    }
+
+    @Test
+    @DisplayName("manuel iptal MSISDN_RESERVED'da: yalniz ReleaseMsisdn yayinlanir (refund YOK)")
+    void manualCancelAfterReserveReleasesOnly() {
+        UUID orderId = placeOrder(UUID.randomUUID(), "TARIFE_M", "249.90");
+        awaitEvent(SagaTopics.SUBSCRIPTION_COMMANDS, "ReserveMsisdnCommand", orderId);
+        reply("MsisdnReserved", new MsisdnReserved(UUID.randomUUID(), orderId, MSISDN));
+
+        // ChargePayment'in gorulmesi = saga MSISDN_RESERVED adimina gecti (ayni tx'te ilerler).
+        awaitEvent(SagaTopics.PAYMENT_COMMANDS, "ChargePaymentCommand", orderId);
+        mediator.send(new CancelOrderCommand(orderId, UUID.randomUUID(), null));
+
+        awaitEvent(SagaTopics.SUBSCRIPTION_COMMANDS, "ReleaseMsisdnCommand", orderId);
+        awaitOrderAndSaga(orderId, OrderStatus.CANCELLED, SagaSteps.CANCELLED);
+        OrderCancelled cancelled = json.readValue(
+                awaitEvent(SagaTopics.ORDER_EVENTS, "OrderCancelled", orderId).value(),
+                OrderCancelled.class);
+        assertThat(cancelled.reason()).contains("manuel iptal");
+
+        // Para tahsil edilmedi: refund olmamali.
+        assertNeverReceived(SagaTopics.PAYMENT_COMMANDS, "RefundPaymentCommand", orderId);
+    }
+
+    @Test
+    @DisplayName("manuel iptal PAYMENT_COMPLETED'da (order PAID): RefundPayment + ReleaseMsisdn birlikte yayinlanir")
+    void manualCancelAfterPaymentRefundsAndReleases() {
+        UUID orderId = placeOrder(UUID.randomUUID(), "TARIFE_M", "249.90");
+        awaitEvent(SagaTopics.SUBSCRIPTION_COMMANDS, "ReserveMsisdnCommand", orderId);
+        reply("MsisdnReserved", new MsisdnReserved(UUID.randomUUID(), orderId, MSISDN));
+
+        awaitEvent(SagaTopics.PAYMENT_COMMANDS, "ChargePaymentCommand", orderId);
+        reply("PaymentCompleted", new PaymentCompleted(UUID.randomUUID(), orderId, UUID.randomUUID()));
+
+        // ActivateSubscription'in gorulmesi = saga PAYMENT_COMPLETED adiminda, order PAID.
+        awaitEvent(SagaTopics.SUBSCRIPTION_COMMANDS, "ActivateSubscriptionCommand", orderId);
+        mediator.send(new CancelOrderCommand(orderId, UUID.randomUUID(), "odeme sonrasi vazgecis"));
+
+        awaitEvent(SagaTopics.PAYMENT_COMMANDS, "RefundPaymentCommand", orderId);
+        awaitEvent(SagaTopics.SUBSCRIPTION_COMMANDS, "ReleaseMsisdnCommand", orderId);
+        awaitOrderAndSaga(orderId, OrderStatus.CANCELLED, SagaSteps.CANCELLED);
+        awaitEvent(SagaTopics.ORDER_EVENTS, "OrderCancelled", orderId);
+    }
+
+    @Test
+    @DisplayName("manuel iptal FULFILLED siparise reddedilir: InvalidOrderException, durum degismez")
+    void manualCancelRejectedWhenFulfilled() {
+        UUID orderId = placeOrder(UUID.randomUUID(), "TARIFE_M", "249.90");
+        awaitEvent(SagaTopics.SUBSCRIPTION_COMMANDS, "ReserveMsisdnCommand", orderId);
+        reply("MsisdnReserved", new MsisdnReserved(UUID.randomUUID(), orderId, MSISDN));
+        awaitEvent(SagaTopics.PAYMENT_COMMANDS, "ChargePaymentCommand", orderId);
+        reply("PaymentCompleted", new PaymentCompleted(UUID.randomUUID(), orderId, UUID.randomUUID()));
+        awaitEvent(SagaTopics.SUBSCRIPTION_COMMANDS, "ActivateSubscriptionCommand", orderId);
+        reply("SubscriptionActivated", new SubscriptionActivated(UUID.randomUUID(), orderId, UUID.randomUUID(), MSISDN));
+        awaitOrderAndSaga(orderId, OrderStatus.FULFILLED, SagaSteps.COMPLETED);
+
+        assertThatThrownBy(() -> mediator.send(new CancelOrderCommand(orderId, UUID.randomUUID(), null)))
+                .isInstanceOf(InvalidOrderException.class)
+                .hasMessageContaining("terminal");
+
+        assertThat(orderRepository.findById(orderId).orElseThrow().getStatus()).isEqualTo(OrderStatus.FULFILLED);
+        assertNeverReceived(SagaTopics.ORDER_EVENTS, "OrderCancelled", orderId);
     }
 
     // --- yardimcilar ---
