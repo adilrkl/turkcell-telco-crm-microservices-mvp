@@ -4,15 +4,22 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
 
+import org.hibernate.annotations.SQLRestriction;
+
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
-/** customers tablosunu karsilar (Flyway V1). */
+/**
+ * customers tablosunu karsilar (Flyway V1). Soft-delete (FR-04, KVKK): {@code deletedAt}
+ * dolu satirlar tum sorgulardan {@link SQLRestriction} ile otomatik dislanir (silinen
+ * musteri okunamaz -> order-service Feign 404 alir, siparis acilamaz).
+ */
 @Entity
 @Table(name = "customers")
+@SQLRestriction("deleted_at is null")
 public class Customer {
 
     @Id

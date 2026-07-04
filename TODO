@@ -1,37 +1,32 @@
 GUNCEL DEVAM NOKTASI -> README.md "DEVAM NOKTASI" + "Faz 3.5" bolumleri (tek kaynak orasidir).
 
-Kisa ozet (2026-07-04, G1-G8 sonrasi):
-- Faz 1 + Faz 2 tamam; 92 test yesil (Kafka'li saga IT + inbox-idempotency + kota/KYC/lifecycle/iptal/PDF/ticket/dunning)
+Kisa ozet (2026-07-04, Faz 3.5 TAMAM - G1..G9):
+- Faz 1 + Faz 2 tamam; 100 test yesil (Kafka'li saga IT + inbox-idempotency + tum G-isleri IT'leri)
 - FE Sprint 3 merge edildi (PR #21); Track A siradaki is: Sprint 4 (Billing + Subscriptions sayfalari)
-- Faz 3.5: G1 kota (#23), G2 fatura bildirim (#24), G3 KYC (#25), G4 yasam dongusu (#27),
-  G5 siparis iptali (#28), G6 fatura PDF (#29), G7 ticket otomasyonu (#30), G8 dunning retry TAMAM
-- DIKKAT (G3 davranis degisikligi): yeni musteri PENDING dogar; siparis icin belge + ADMIN kyc/approve gerekir
-- G5 notu: POST /api/orders/{id}/cancel (CSR/ADMIN); yalniz terminal-oncesi; adima gore release/refund
-- G6 notu: GET /api/billing/invoices/{id}/pdf (OpenPDF, istek aninda uretim, saklama yok)
-- G7 notu: POST /api/tickets acilista SLA (oncelik) + team (kategori) otomatik; TicketOpened -> notification SMS
-- G8 notu: basarisiz fatura tahsilati dunning_schedules plani acar; payment scheduler 24/72/168 saat
-  (payment.dunning.intervals, origin'e gore offset) re-charge eder; basarili retry -> InvoicePaid (fatura
-  PAYMENT_FAILED->PAID), tukenirse EXHAUSTED. Mock PSP tek kaynakta (PaymentGateway); demo knob'lari:
-  payment.dunning.demo-recover-on-retry + intervals kisaltma (10s,20s,30s) + poll-interval-ms.
+- Faz 3.5 KAPANDI: G1 kota (#23), G2 fatura bildirim (#24), G3 KYC (#25), G4 yasam dongusu (#27),
+  G5 siparis iptali (#28), G6 fatura PDF (#29), G7 ticket otomasyonu (#30), G8 dunning (#31), G9 kucukler TAMAM
+- DIKKAT (G3): yeni musteri PENDING dogar; siparis icin belge + ADMIN kyc/approve gerekir
+- DIKKAT (G9): musteri olusturmada TCKN/VKN artik ZORUNLU + algoritmik dogrulanir (INDIVIDUAL->TCKN,
+  CORPORATE->VKN; gecersiz/eksik -> 422). Demo seed SQL ile eklendigi icin etkilenmez.
+- G9 notlari: soft-delete DELETE /api/customers/{id} (@SQLRestriction ile silinen okunamaz);
+  opt-in/out notification_preferences + NotificationDispatcher (6 handler ortaklastirildi),
+  PUT/GET /api/notifications/preferences/{userId}; opt-out -> bildirim SKIPPED.
 - KARAR (nihai): outbox common-lib'e CIKARILMADI; her servis kendi kopyasini tasir. Bir daha sorma.
 - Saga sertlestirme BACKLOG'da (docx gereksinimi degil; FR-10/12 karsilandi, IT'li)
 
-ONCELIK SIRASI — Faz 3.5 docx bosluklari (detay: README "Faz 3.5" tablosu):
-  G1  Kota zinciri + CDR simulatoru        TAMAM (#23)
-  G2  Fatura bildirimleri                  TAMAM (#24)
-  G3  KYC mini akisi                       TAMAM (#25)
-  G4  Abonelik suspend/reactivate/terminate TAMAM (#27)
-  G5  Manuel siparis iptali                TAMAM (#28)
-  G6  Fatura PDF                           TAMAM (#29)
-  G7  Ticket otomasyonu                    TAMAM (#30)
-  G8  Odeme dunning retry                  TAMAM
-  G9  Kucukler: TCKN/VKN dogrulama, soft-delete (KVKK), notification opt-in/out  <- BURADAN DEVAM (Faz 3.5 SON)
-      (FR-01/04/30; tek PR'da uc kucuk kalem)
+SIRADAKI: Faz 4 (docx genislik boslugu kalmadi; artik altyapi/CI)
+  - Faz 4: Dockerfile (her servis) + GitHub Actions CI test-gate (./mvnw test, Docker'li)
+  - typed-client (generate:api) karari CI ile birlikte
+  - Track A (FE): Sprint 4 (Billing + Subscriptions sayfalari)
 
-Sonrasi (Faz 3.5 bitince):
-- Faz 4: Dockerfile + GitHub Actions CI test-gate; typed-client (generate:api) karari CI ile
-- Track A (FE): Sprint 4 (Billing + Subscriptions sayfalari); hazir API'ler:
-  GET /api/usage/quota, KYC onay/red + adres/belge, POST /api/subscriptions/{id}/suspend|reactivate|terminate,
-  POST /api/orders/{id}/cancel, GET /api/billing/invoices/{id}/pdf, POST /api/tickets (SLA/team otomatik)
+Faz 3.5 tablosu (README "Faz 3.5" bolumu) — hepsi TAMAM:
+  G1 Kota zinciri + CDR | G2 Fatura bildirim | G3 KYC | G4 Abonelik yasam dongusu |
+  G5 Siparis iptali | G6 Fatura PDF | G7 Ticket otomasyonu | G8 Dunning retry | G9 Kucukler (TCKN/VKN,
+  soft-delete, opt-in/out)
+
+Track A (FE) icin hazir API'ler: GET /api/usage/quota, KYC onay/red + adres/belge,
+  POST /api/subscriptions/{id}/suspend|reactivate|terminate, POST /api/orders/{id}/cancel,
+  GET /api/billing/invoices/{id}/pdf, POST /api/tickets (SLA/team otomatik),
+  DELETE /api/customers/{id}, GET|PUT /api/notifications/preferences/{userId}
 
 Bilincli scope-out ve docx'ten bilincli sapmalar: README "Faz 3.5" bolumunun altinda.

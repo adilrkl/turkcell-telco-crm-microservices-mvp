@@ -4,6 +4,7 @@ import java.util.UUID;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -21,6 +22,7 @@ import com.turkcell.commonlib.dto.ApiResponse;
 import com.turkcell.customerservice.application.features.address.command.add.AddAddressCommand;
 import com.turkcell.customerservice.application.features.address.query.list.ListAddressesQuery;
 import com.turkcell.customerservice.application.features.customer.command.create.CreateCustomerCommand;
+import com.turkcell.customerservice.application.features.customer.command.delete.DeleteCustomerCommand;
 import com.turkcell.customerservice.application.features.customer.command.update.UpdateCustomerCommand;
 import com.turkcell.customerservice.application.features.customer.query.getbyid.GetCustomerByIdQuery;
 import com.turkcell.customerservice.application.features.customer.query.list.ListCustomersQuery;
@@ -78,6 +80,14 @@ public class CustomerController {
                 id, request.firstName(), request.lastName(), request.identityNumber(),
                 request.dateOfBirth(), request.status());
         return ApiResponse.ok(mediator.send(command), "Musteri guncellendi");
+    }
+
+    /** Musteri soft-delete (FR-04, KVKK): satir kalir, deletedAt damgalanir (CSR/ADMIN). */
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('CSR','ADMIN')")
+    public ApiResponse<Void> delete(@PathVariable UUID id) {
+        mediator.send(new DeleteCustomerCommand(id));
+        return ApiResponse.ok(null, "Musteri silindi");
     }
 
     // --- Adres & belge (KYC mini akisi, G3) ---

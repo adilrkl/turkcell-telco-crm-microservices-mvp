@@ -27,7 +27,7 @@ import com.turkcell.notificationservice.repository.ProcessedEventRepository;
  */
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(SubscriptionEventHandler.class)
+@Import({SubscriptionEventHandler.class, NotificationDispatcher.class, NotificationPreferenceService.class})
 @Testcontainers(disabledWithoutDocker = true)
 class SubscriptionEventHandlerIntegrationTest {
 
