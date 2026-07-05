@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { App, Button, Card, Form, Modal, Select, Space, Table, Tag } from "antd";
-import { EyeOutlined, PlusOutlined } from "@ant-design/icons";
+import { App, Button, Card, Form, Modal, Popconfirm, Select, Space, Table, Tag } from "antd";
+import { CloseCircleOutlined, EyeOutlined, PlusOutlined } from "@ant-design/icons";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../lib/axios";
 import { apiErrorMessage } from "../../lib/apiError";
@@ -11,6 +11,8 @@ import { ORDER_STATUS_COLOR, OrderSagaDrawer } from "./OrderSagaDrawer";
 import type { ApiResponse, OrderResponse, RestPage, TariffResponse } from "../../api/types";
 
 const ORDER_STATUSES = ["PENDING_PAYMENT", "PAID", "FULFILLED", "CANCELLED"];
+// Manuel iptal yalniz terminal-oncesi durumlarda (G5, §8.3); FULFILLED/CANCELLED -> 409 ORDER_INVALID.
+const CANCELLABLE_STATUSES = ["PENDING_PAYMENT", "PAID"];
 
 interface OrderFormValues {
   customerId: string;
@@ -78,6 +80,17 @@ export function OrdersPage() {
       }
     },
     onError: (error) => message.error(apiErrorMessage(error, "Siparis olusturulamadi")),
+  });
+
+  // G5: manuel siparis iptali (CSR/ADMIN). 409 ORDER_INVALID mesaji yuzeye cikar.
+  const cancelOrder = useMutation({
+    mutationFn: (orderId: string) =>
+      api.post<ApiResponse<OrderResponse>>(`/api/orders/${orderId}/cancel`),
+    onSuccess: (res) => {
+      message.success(res.data.message ?? "Siparis iptal edildi");
+      void queryClient.invalidateQueries({ queryKey: ["orders"] });
+    },
+    onError: (error) => message.error(apiErrorMessage(error, "Siparis iptal edilemedi")),
   });
 
   const openCreate = () => {
@@ -155,23 +168,42 @@ export function OrdersPage() {
             dataIndex: "status",
             render: (s: string) => <Tag color={ORDER_STATUS_COLOR[s] ?? "default"}>{s}</Tag>,
           },
-          ...(canPlaceAndWatch
-            ? [
-                {
-                  title: "",
-                  key: "actions",
-                  render: (_: unknown, record: OrderResponse) => (
+          {
+            title: "",
+            key: "actions",
+            render: (_: unknown, record: OrderResponse) => (
+              <Space>
+                {canPlaceAndWatch && (
+                  <Button
+                    size="small"
+                    icon={<EyeOutlined />}
+                    onClick={() => setTrackedOrderId(record.orderId)}
+                  >
+                    Izle
+                  </Button>
+                )}
+                {CANCELLABLE_STATUSES.includes(record.status) && (
+                  <Popconfirm
+                    title="Siparis iptal edilsin mi?"
+                    description="Ulasilan saga adimina gore telafi (iade / numara birakma) uygulanir."
+                    okText="Iptal et"
+                    okButtonProps={{ danger: true }}
+                    cancelText="Vazgec"
+                    onConfirm={() => cancelOrder.mutate(record.orderId)}
+                  >
                     <Button
                       size="small"
-                      icon={<EyeOutlined />}
-                      onClick={() => setTrackedOrderId(record.orderId)}
+                      danger
+                      icon={<CloseCircleOutlined />}
+                      loading={cancelOrder.isPending && cancelOrder.variables === record.orderId}
                     >
-                      Izle
+                      Iptal
                     </Button>
-                  ),
-                },
-              ]
-            : []),
+                  </Popconfirm>
+                )}
+              </Space>
+            ),
+          },
         ]}
       />
 

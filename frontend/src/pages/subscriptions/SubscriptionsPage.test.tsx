@@ -24,10 +24,21 @@ function page(content: unknown[]) {
   return { data: { data: { content, number: 0, size: 10, totalElements: content.length } } };
 }
 
+const QUOTA = {
+  subscriptionId: BASE.id,
+  periodStart: "2026-07-01",
+  periodEnd: "2026-07-31",
+  items: [
+    { type: "VOICE", total: 1000, remaining: 400, usedPct: 60 },
+    { type: "DATA", total: 20480, remaining: 0, usedPct: 100 },
+  ],
+};
+
 function setup(sub: Record<string, unknown>) {
   getMock.mockImplementation((url: string) => {
     if (url === "/api/subscriptions") return Promise.resolve(page([sub]));
     if (url === "/api/customers") return Promise.resolve(page([]));
+    if (url === "/api/usage/quota") return Promise.resolve({ data: { data: QUOTA } });
     return Promise.resolve(page([]));
   });
 }
@@ -87,6 +98,31 @@ describe("SubscriptionsPage yasam dongusu aksiyonlari (G4)", () => {
 
     await user.click(screen.getByRole("button", { name: /Yeniden aktive et/i }));
     expect(await screen.findByText("Gecersiz gecis: TERMINATED")).toBeInTheDocument();
+  });
+
+  it("ACTIVE abonelikte 'Kota' drawer'i GET /usage/quota ile acar (G1)", async () => {
+    setup({ ...BASE, status: "ACTIVE" });
+    const user = userEvent.setup();
+    renderWithProviders(<SubscriptionsPage />);
+    await screen.findByText("5551234567");
+
+    await user.click(screen.getByRole("button", { name: /Kota/i }));
+    expect(await screen.findByText("VOICE")).toBeInTheDocument();
+    expect(screen.getByText("DATA")).toBeInTheDocument();
+    expect(screen.getByText(/400 \/ 1000 dk kaldi/i)).toBeInTheDocument();
+    await waitFor(() =>
+      expect(getMock).toHaveBeenCalledWith(
+        "/api/usage/quota",
+        expect.objectContaining({ params: { subscriptionId: BASE.id } }),
+      ),
+    );
+  });
+
+  it("TERMINATED abonelikte 'Kota' butonu gorunmez", async () => {
+    setup({ ...BASE, status: "TERMINATED", terminatedAt: "2026-06-10T09:00:00Z" });
+    renderWithProviders(<SubscriptionsPage />);
+    await screen.findByText("5551234567");
+    expect(screen.queryByRole("button", { name: /Kota/i })).not.toBeInTheDocument();
   });
 
   it("'Sonlandir' onay kutusundan gecerek POST .../terminate cagirir", async () => {

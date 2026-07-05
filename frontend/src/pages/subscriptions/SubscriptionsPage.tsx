@@ -1,12 +1,18 @@
 import { useState } from "react";
 import { App, Button, Card, Popconfirm, Select, Space, Table, Tag } from "antd";
-import { PauseCircleOutlined, PlayCircleOutlined, StopOutlined } from "@ant-design/icons";
+import {
+  BarChartOutlined,
+  PauseCircleOutlined,
+  PlayCircleOutlined,
+  StopOutlined,
+} from "@ant-design/icons";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import dayjs from "dayjs";
 import { api } from "../../lib/axios";
 import { apiErrorMessage } from "../../lib/apiError";
 import { ShortId } from "../../components/ShortId";
 import { CustomerSelect } from "../../components/CustomerSelect";
+import { SubscriptionQuotaDrawer } from "./SubscriptionQuotaDrawer";
 import type { ApiResponse, RestPage, SubscriptionResponse } from "../../api/types";
 
 const SUBSCRIPTION_STATUSES = ["PENDING", "ACTIVE", "SUSPENDED", "TERMINATED"];
@@ -34,6 +40,7 @@ export function SubscriptionsPage() {
   const [pageSize, setPageSize] = useState(10);
   const [status, setStatus] = useState<string | undefined>();
   const [customerId, setCustomerId] = useState<string | undefined>();
+  const [quotaSubId, setQuotaSubId] = useState<string | null>(null);
 
   const { data, isFetching } = useQuery({
     queryKey: ["subscriptions", page, pageSize, status, customerId],
@@ -134,6 +141,15 @@ export function SubscriptionsPage() {
               const busy = rowBusy(record.id);
               return (
                 <Space>
+                  {(record.status === "ACTIVE" || record.status === "SUSPENDED") && (
+                    <Button
+                      size="small"
+                      icon={<BarChartOutlined />}
+                      onClick={() => setQuotaSubId(record.id)}
+                    >
+                      Kota
+                    </Button>
+                  )}
                   {record.status === "ACTIVE" && (
                     <Popconfirm
                       title="Abonelik askiya alinsin mi?"
@@ -176,6 +192,8 @@ export function SubscriptionsPage() {
           },
         ]}
       />
+
+      <SubscriptionQuotaDrawer subscriptionId={quotaSubId} onClose={() => setQuotaSubId(null)} />
     </Card>
   );
 }

@@ -84,6 +84,31 @@ export interface TariffResponse {
   status: string;
 }
 
+/** customer-service DocumentResponse — KYC belgesi (fileRef mock; verifiedAt onayla damgalanir). */
+export interface DocumentResponse {
+  id: string;
+  customerId: string;
+  type: string;
+  fileRef: string | null;
+  verifiedAt: string | null;
+}
+
+/** usage-service QuotaItem — tip bazli kota kalemi. type: VOICE (dk) | SMS (adet) | DATA (MB). */
+export interface QuotaItem {
+  type: string;
+  total: number;
+  remaining: number;
+  usedPct: number;
+}
+
+/** usage-service QuotaResponse — bir aboneligin donem kotasi (FE kota karti, G1/FR-19). */
+export interface QuotaResponse {
+  subscriptionId: string;
+  periodStart: string | null;
+  periodEnd: string | null;
+  items: QuotaItem[];
+}
+
 /** billing-service InvoiceResponse — sayfali fatura listesi kalemi. */
 export interface InvoiceResponse {
   id: string;

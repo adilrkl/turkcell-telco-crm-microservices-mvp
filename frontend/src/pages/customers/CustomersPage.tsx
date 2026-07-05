@@ -7,16 +7,18 @@ import {
   Form,
   Input,
   Modal,
+  Popconfirm,
   Select,
   Space,
   Table,
   Tag,
 } from "antd";
-import { PlusOutlined, EditOutlined } from "@ant-design/icons";
+import { PlusOutlined, EditOutlined, DeleteOutlined, IdcardOutlined } from "@ant-design/icons";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import dayjs, { Dayjs } from "dayjs";
 import { api } from "../../lib/axios";
 import { apiErrorMessage } from "../../lib/apiError";
+import { CustomerKycDrawer } from "./CustomerKycDrawer";
 import type { ApiResponse, CustomerResponse, RestPage } from "../../api/types";
 
 interface CustomerFormValues {
@@ -44,6 +46,7 @@ export function CustomersPage() {
   const [q, setQ] = useState("");
   const [editing, setEditing] = useState<CustomerResponse | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [kycCustomer, setKycCustomer] = useState<CustomerResponse | null>(null);
   const [form] = Form.useForm<CustomerFormValues>();
   // Kimlik etiketi tip'e gore degisir (INDIVIDUAL->TCKN, CORPORATE->VKN); G9'da zorunlu.
   const watchedType = Form.useWatch("type", form);
@@ -78,6 +81,16 @@ export function CustomersPage() {
     },
     // Backend dogrulama mesajini (orn. G9 "Gecersiz TCKN" 422) yuzeye cikar.
     onError: (error) => message.error(apiErrorMessage(error, "Kaydetme basarisiz")),
+  });
+
+  // G9: soft-delete (CSR/ADMIN) — satir kalir, deletedAt damgalanir, tum sorgulardan duser.
+  const remove = useMutation({
+    mutationFn: (id: string) => api.delete<ApiResponse<void>>(`/api/customers/${id}`),
+    onSuccess: (res) => {
+      message.success(res.data.message ?? "Musteri silindi");
+      void queryClient.invalidateQueries({ queryKey: ["customers"] });
+    },
+    onError: (error) => message.error(apiErrorMessage(error, "Musteri silinemedi")),
   });
 
   const openCreate = () => {
@@ -146,9 +159,35 @@ export function CustomersPage() {
           {
             title: "",
             render: (_, record) => (
-              <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(record)}>
-                Duzenle
-              </Button>
+              <Space>
+                <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(record)}>
+                  Duzenle
+                </Button>
+                <Button
+                  size="small"
+                  icon={<IdcardOutlined />}
+                  onClick={() => setKycCustomer(record)}
+                >
+                  KYC
+                </Button>
+                <Popconfirm
+                  title="Musteri silinsin mi?"
+                  description="Soft-delete: kayit kalir ama tum sorgulardan duser, siparis acilamaz."
+                  okText="Sil"
+                  okButtonProps={{ danger: true }}
+                  cancelText="Vazgec"
+                  onConfirm={() => remove.mutate(record.id)}
+                >
+                  <Button
+                    size="small"
+                    danger
+                    icon={<DeleteOutlined />}
+                    loading={remove.isPending && remove.variables === record.id}
+                  >
+                    Sil
+                  </Button>
+                </Popconfirm>
+              </Space>
             ),
           },
         ]}
@@ -197,6 +236,8 @@ export function CustomersPage() {
           )}
         </Form>
       </Modal>
+
+      <CustomerKycDrawer customer={kycCustomer} onClose={() => setKycCustomer(null)} />
     </Card>
   );
 }
