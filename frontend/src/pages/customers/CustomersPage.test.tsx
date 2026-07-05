@@ -4,8 +4,17 @@ import userEvent from "@testing-library/user-event";
 import { AxiosError } from "axios";
 import { renderWithProviders } from "../../test/utils";
 
-const { getMock, postMock } = vi.hoisted(() => ({ getMock: vi.fn(), postMock: vi.fn() }));
-vi.mock("../../lib/axios", () => ({ api: { get: getMock, post: postMock, put: vi.fn() } }));
+const { getMock, postMock, deleteMock } = vi.hoisted(() => ({
+  getMock: vi.fn(),
+  postMock: vi.fn(),
+  deleteMock: vi.fn(),
+}));
+vi.mock("../../lib/axios", () => ({
+  api: { get: getMock, post: postMock, put: vi.fn(), delete: deleteMock },
+}));
+
+const { useAuthMock } = vi.hoisted(() => ({ useAuthMock: vi.fn() }));
+vi.mock("../../auth/useAuth", () => ({ useAuth: useAuthMock }));
 
 import { CustomersPage } from "./CustomersPage";
 
@@ -27,6 +36,13 @@ describe("CustomersPage", () => {
   beforeEach(() => {
     getMock.mockReset();
     postMock.mockReset();
+    deleteMock.mockReset();
+    useAuthMock.mockReset();
+    useAuthMock.mockReturnValue({
+      user: { username: "u", email: null, fullName: null, roles: ["CSR"] },
+      isLoading: false,
+      hasRole: (...r: string[]) => r.includes("CSR"),
+    });
     getMock.mockResolvedValue(listResponse([CUSTOMER]));
   });
 
@@ -78,5 +94,21 @@ describe("CustomersPage", () => {
     // apiErrorMessage sayesinde generic degil, backend mesaji gorunur
     expect(await screen.findByText("Gecersiz TCKN")).toBeInTheDocument();
     await waitFor(() => expect(postMock).toHaveBeenCalled());
+  });
+
+  it("'Sil' Popconfirm'den gecerek DELETE /customers/{id} cagirir (G9 soft-delete)", async () => {
+    deleteMock.mockResolvedValue({ data: { success: true, message: "Musteri silindi" } });
+    const user = userEvent.setup();
+    renderWithProviders(<CustomersPage />);
+    await screen.findByText("Ahmet");
+
+    // Tetikleyici buton adi ikon yuzunden "delete Sil"; Popconfirm onay butonu ikonsuz "Sil".
+    await user.click(screen.getByRole("button", { name: /Sil/ }));
+    await user.click(screen.getByRole("button", { name: "Sil" }));
+
+    await waitFor(() =>
+      expect(deleteMock).toHaveBeenCalledWith(`/api/customers/${CUSTOMER.id}`),
+    );
+    expect(await screen.findByText("Musteri silindi")).toBeInTheDocument();
   });
 });
