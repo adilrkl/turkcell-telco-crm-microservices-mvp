@@ -56,6 +56,14 @@
       <artifactId>bucket4j_jdk17-lettuce</artifactId>
       <version>8.13.1</version>
     </dependency>
+
+    <!-- Context-load testi rate-limit Redis'ini Testcontainers ile ayaga kaldirir
+         (compose altyapisina bagimlilik yok -> CI'da kosabilir). -->
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>testcontainers-junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
