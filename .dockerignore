@@ -1,0 +1,5 @@
+# Allowlist: imaj build'i yalnizca once uretilmis Boot jar'larini kullanir
+# (bkz. Dockerfile) -> devasa monorepo context'i (node_modules, .git, class'lar)
+# Docker daemon'a hic tasinmaz.
+*
+!*/target/*.jar
