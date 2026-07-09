@@ -1,0 +1,30 @@
+# HPA (docx §5 stateless/HPA hedefi) — yalnizca hpa.enabled: true olan
+# servisler icin uretilir (varsayilan: gateway-server, order-service).
+# CPU metrigi icin cluster'da metrics-server kurulu olmali.
+{{- range $name, $svc := .Values.services }}
+{{- $cfg := include "telco-crm.serviceConfig" (dict "root" $ "svc" $svc) | fromYaml }}
+{{- if $cfg.hpa.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ $name }}
+  labels:
+    app.kubernetes.io/name: {{ $name }}
+    {{- include "telco-crm.labels" $ | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ $name }}
+  minReplicas: {{ $cfg.hpa.minReplicas }}
+  maxReplicas: {{ $cfg.hpa.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ $cfg.hpa.targetCPUUtilizationPercentage }}
+{{- end }}
+{{- end }}

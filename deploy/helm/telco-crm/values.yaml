@@ -1,0 +1,134 @@
+# ======================================================================
+# telco-crm chart degerleri (Faz 4)
+#
+# Kapsam: yalnizca uygulama servisleri. Altyapi (postgres'ler, kafka, redis,
+# keycloak, otel/tempo/loki/prometheus) bu chart'in DISINDA kalir — lokalde
+# docker-compose altyapisi, prod'da yonetilen servisler/ayri chart'lar.
+# Endpoint'ler platformEnv uzerinden verilir.
+#
+# Port degerleri scripts/build-images.sh SERVICES listesiyle ayni olmali.
+# ======================================================================
+
+image:
+  # CI main push'unda basilan imajlar (bkz. .github/workflows/ci.yml):
+  #   ghcr.io/adilrkl/turkcell-telco-crm-microservices-mvp/<servis>:<tag>
+  registry: ghcr.io/adilrkl/turkcell-telco-crm-microservices-mvp
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# Tum pod'lara ConfigMap (envFrom) ile enjekte edilir. Servis config'leri bu
+# env adlarini zaten okur (config-server configs/*.yaml icindeki ${VAR:default}
+# yer tutuculari); burada olmayan anahtar icin servis kendi default'una duser.
+# NOT: SPRING_DATASOURCE_URL gibi standart Spring anahtarlarinda env her zaman
+# config-server'dan gelen degeri ezer (Boot config-data onceligi).
+platformEnv:
+  SPRING_PROFILES_ACTIVE: prod
+  # optional: onek sayesinde config-server kendine import'u sessizce atlar.
+  SPRING_CONFIG_IMPORT: "optional:configserver:http://config-server:8889"
+  EUREKA_URL: "http://eureka-server:8761/eureka/"
+  KAFKA_BROKERS: "kafka:9092"
+  REDIS_HOST: "redis"
+  REDIS_PORT: "6379"
+  # DIKKAT: issuer JWT 'iss' claim'iyle birebir eslesmeli. Keycloak'a disaridan
+  # da erisiliyorsa (SPA login) ayni host adini cluster ici DNS'te de cozdur.
+  KEYCLOAK_ISSUER: "http://keycloak:8080/realms/telco-crm"
+  OTLP_TRACES_ENDPOINT: "http://otel-collector:4318/v1/traces"
+  LOKI_URL: "http://loki:3100/loki/api/v1/push"
+  TRACE_SAMPLING: "0.1"
+
+# Demo DB kimligi — tum servis DB'leri ayni parolayi kullanir (compose ile ayni).
+# DB_USER verilmez: her servis kendi <servis>_user default'unu kullanir.
+# Faz 5: Vault / external-secrets ile degistirilecek.
+dbCredentials:
+  pass: secret
+
+defaults:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      memory: 1Gi
+  probes:
+    # startup: 5s x 36 = 180s'e kadar acilis toleransi (JVM + Flyway + Kafka binder)
+    startupFailureThreshold: 36
+  hpa:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 70
+
+# Servis haritasi: generic sablon (templates/*.yaml) bu map uzerinde doner.
+# Her girdi defaults ile birlestirilir; env buradaki > platformEnv onceligiyle uygulanir.
+# db: true -> pod'a DB_PASS secret'i ve SPRING_DATASOURCE_URL env'i baglanir.
+services:
+  config-server:
+    port: 8889
+  eureka-server:
+    port: 8761
+  gateway-server:
+    port: 8888
+    hpa:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 5
+    env:
+      RATELIMIT_REDIS_HOST: "redis"
+      RATELIMIT_REDIS_PORT: "6379"
+  bff-server:
+    port: 9000
+  identity-service:
+    port: 8081
+    db: true
+    env:
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres-identity-service:5432/identity_db"
+  customer-service:
+    port: 8082
+    db: true
+    env:
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres-customer-service:5432/customer_db"
+  product-catalog-service:
+    port: 8083
+    db: true
+    env:
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres-product-catalog-service:5432/catalog_db"
+  order-service:
+    port: 8084
+    db: true
+    hpa:
+      enabled: true
+      minReplicas: 1
+      maxReplicas: 4
+    env:
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres-order-service:5432/order_db"
+  subscription-service:
+    port: 8085
+    db: true
+    env:
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres-subscription-service:5432/subscription_db"
+  usage-service:
+    port: 8086
+    db: true
+    env:
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres-usage-service:5432/usage_db"
+  billing-service:
+    port: 8087
+    db: true
+    env:
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres-billing-service:5432/billing_db"
+  payment-service:
+    port: 8088
+    db: true
+    env:
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres-payment-service:5432/payment_db"
+  notification-service:
+    port: 8089
+    db: true
+    env:
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres-notification-service:5432/notification_db"
+  ticket-service:
+    port: 8090
+    db: true
+    env:
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres-ticket-service:5432/ticket_db"

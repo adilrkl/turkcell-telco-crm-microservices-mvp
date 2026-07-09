@@ -1,0 +1,14 @@
+telco-crm kuruldu ({{ .Release.Name }} / ns: {{ .Release.Namespace }}).
+
+Pod durumu:
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/part-of=telco-crm
+
+Gateway'e lokal erisim:
+  kubectl port-forward -n {{ .Release.Namespace }} svc/gateway-server 8888:8888
+BFF (SPA login katmani):
+  kubectl port-forward -n {{ .Release.Namespace }} svc/bff-server 9000:9000
+
+UNUTMA: Bu chart yalnizca uygulama servislerini kurar. PostgreSQL'ler, Kafka,
+Redis, Keycloak ve observability altyapisinin values.yaml platformEnv +
+services.*.env.SPRING_DATASOURCE_URL adreslerinden erisilebilir olmasi gerekir
+(detay: DEPLOYMENT.md).

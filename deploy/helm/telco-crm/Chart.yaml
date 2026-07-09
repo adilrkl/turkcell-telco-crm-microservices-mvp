@@ -1,0 +1,11 @@
+apiVersion: v2
+name: telco-crm
+description: >-
+  Telco CRM mikroservis platformu (Faz 4). 14 Spring Boot servisini tek generic
+  sablondan deploy eder: Deployment + Service + HPA + actuator probe'lari +
+  ConfigMap/Secret (docx §5 stateless/HPA hedefi). Altyapi (PostgreSQL, Kafka,
+  Redis, Keycloak, observability) chart kapsami DISINDADIR; endpoint'leri
+  values.yaml platformEnv ile verilir.
+type: application
+version: 0.1.0
+appVersion: "1.0.0-SNAPSHOT"
