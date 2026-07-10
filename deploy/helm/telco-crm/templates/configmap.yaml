@@ -1,0 +1,12 @@
+# Tum servislere ortak platform env'leri (envFrom ile baglanir).
+# Servis-ozel env'ler Deployment'ta acik `env` girdileriyle bunlari ezer.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: telco-crm-platform-env
+  labels:
+    {{- include "telco-crm.labels" . | nindent 4 }}
+data:
+  {{- range $key, $val := .Values.platformEnv }}
+  {{ $key }}: {{ $val | quote }}
+  {{- end }}

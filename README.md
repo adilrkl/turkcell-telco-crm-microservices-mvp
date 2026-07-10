@@ -26,6 +26,7 @@ entegre edilmiştir.
 - **Micrometer + OpenTelemetry + Grafana LGTM** — metrics, distributed tracing ve log korelasyonu
 - **Docker Compose** — yerel altyapı
 - **Maven** — multi-module build
+- **Docker + Helm + GitHub Actions** — servis imajları (layered), K8s chart'ı ve CI test-gate ([DEPLOYMENT.md](DEPLOYMENT.md))
 
 ## Servisler ve Portlar
 
@@ -246,6 +247,11 @@ Bu tek çağrı **saga'yı** başlatır:
 telco-crm-platform/
 ├── pom.xml                       # parent pom
 ├── docker-compose.yml            # postgres'ler + pgadmin + kafka + redis + keycloak + observability stack
+├── Dockerfile                    # TUM servisler icin parametrik layered imaj (Faz 4)
+├── scripts/build-images.sh       # 14 servis imajini uretir (service:port haritasinin kaynagi)
+├── .github/workflows/ci.yml      # CI: backend+frontend+helm gate, main'de GHCR imaj publish
+├── deploy/helm/telco-crm/        # K8s chart: Deployment+Service+HPA+probe+ConfigMap/Secret
+├── DEPLOYMENT.md                 # Faz 4: paketleme/CI/K8s kararlari ve kullanim
 ├── OBSERVABILITY.md              # metrics/traces/logs mimarisi ve doğrulama adımları
 ├── SAGA.md                       # saga orchestration: akış, topic topolojisi, test, compensation
 ├── OPENAPI.md                    # springdoc/swagger ui katmanı
@@ -278,11 +284,16 @@ Temel mimari oturdu: config, service discovery, gateway + BFF, Keycloak güvenli
 Outbox/Inbox, Saga orchestration, mediator-tabanlı CQRS, rate limiting ve observability entegre.
 Frontend de artık bu repodadır (monorepo, `frontend/`); mimari kararları için [FRONTEND.md](FRONTEND.md).
 
-### 📍 DEVAM NOKTASI (son güncelleme: 2026-07-05, FE Sprint 5 sonrası — **Faz 3.5 TAMAMLANDI**)
+### 📍 DEVAM NOKTASI (son güncelleme: 2026-07-09 — **Faz 4 TAMAMLANDI**)
 
-**Durum:** Faz 1 ✅ · Faz 2 ✅ · Faz 3 ilerliyor · **Faz 3.5: G1–G9 ✅ (TAMAM)** (kota zinciri +
-fatura bildirimleri + KYC + abonelik yaşam döngüsü + manuel sipariş iptali + fatura PDF + ticket otomasyonu + dunning retry + TCKN/VKN & soft-delete & opt-in/out; 100 test yeşil) · FE Sprint 3 (PR #21) + **FE Sprint 4** (Billing + Subscriptions; G4/G6) + **FE Sprint 5 ✅** (kalan G-UI: G5 sipariş iptal, G9 müşteri sil, G1 kota kartı, G3 KYC onay/red + belge; 67 FE test yeşil) merge edildi ·
-Sıradaki backend işi: **Faz 4** (Dockerfile + GitHub Actions CI test-gate) — artık docx genişlik boşlukları kapandı.
+**Durum:** Faz 1 ✅ · Faz 2 ✅ · Faz 3 ilerliyor · **Faz 3.5: G1–G9 ✅** · FE Sprint 3–5 ✅ (67 FE test yeşil) ·
+**Faz 4 ✅** (parametrik layered Dockerfile + `scripts/build-images.sh` ile 14 servis imajı; GitHub Actions CI:
+backend `mvn verify` + frontend vitest/build + helm lint PR gate'i, main push'unda GHCR'a imaj publish;
+Helm chart: Deployment+Service+HPA+probe+ConfigMap/Secret — ayrıntı ve kararlar [DEPLOYMENT.md](DEPLOYMENT.md)) ·
+Sıradaki backend işi: **Faz 5** (secret sertleştirme) veya Faz 3 kalanları (coverage gate, contract test).
+> ✅ Sağlamlık düzeltmesi (Faz 4 hazırlığı): gateway `contextLoads` testi gerçek `localhost:6379` Redis'ine
+> bağlanıyordu (compose kapalıyken/CI'da kırmızı); Testcontainers Redis'e geçirildi — suite artık compose
+> altyapısı OLMADAN uçtan uca yeşil (CI'ın çalışma önkoşulu buydu).
 > ℹ️ Dev notu (FE Sprint 4): SPA `:5173`'ten login → Keycloak → SPA akışı için `vite.config.ts` proxy'de `/oauth2 /login /logout` **`changeOrigin: false`** olmalı (BFF `redirect_uri`'yi Host'tan üretir; `:9000` olursa login sonrası Whitelabel 404'e düşer). Keycloak `telco-bff` client'ında `http://localhost:5173/*` redirect kayıtlı.
 > ⚠️ Davranış değişikliği (G9): müşteri oluşturmada **TCKN/VKN artık zorunlu ve algoritmik doğrulanıyor** (INDIVIDUAL→TCKN, CORPORATE→VKN; geçersizse 422). Demo seed müşterileri SQL ile eklendiği için etkilenmez.
 > ℹ️ Karar (G7): outbox **common-lib'e çıkarılmadı** — servis bağımsızlığı korunuyor, her servis kendi kopyasını taşır (nihai; bir daha sorulmayacak).
@@ -300,12 +311,14 @@ Kural: [FRONTEND.md](FRONTEND.md) FE track'ine, bu README'nin yol haritası back
 
 | Sıradaki iş | Track A — Frontend (`frontend/`) | Track B — Backend |
 |---|---|---|
-| **✅ (Sprint 4 + 5 TAMAM)** | **Sprint 4 ✅** Billing (fatura + kalem + PDF **G6**) + Subscriptions (yaşam döngüsü **G4**) · **Sprint 5 ✅** kalan G-UI: **G5** sipariş iptal (`POST /orders/{id}/cancel`), **G9** müşteri sil (`DELETE /customers/{id}`), **G1** kota kartı (`GET /usage/quota`), **G3** KYC onay/red + belge; `RequireRole` ile rol-bazlı; 67 FE test yeşil | **Faz 3.5:** **G1–G9 ✅ TAMAM** → sıradaki **Faz 4** (CI test-gate; typed-client) |
-| **1 (buradan devam)** | Typed-client (`generate:api`) geçişi (Faz 4 CI kararıyla) · **ertelenen:** G9 bildirim tercihleri UI (`GET/PUT /api/notifications/preferences/{userId}`) — userId Keycloak `sub`'i, kullanıcı↔müşteri bağlantısı yok; anlamlı yer için o karar gerekli | **Faz 4:** Dockerfile + GitHub Actions CI (test gate) — Faz 3.5 ile paralel yürüyebilir |
+| **✅ (tamamlananlar)** | **Sprint 4 ✅** Billing (fatura + kalem + PDF **G6**) + Subscriptions (yaşam döngüsü **G4**) · **Sprint 5 ✅** kalan G-UI: **G5** sipariş iptal, **G9** müşteri sil, **G1** kota kartı, **G3** KYC onay/red + belge; 67 FE test yeşil | **Faz 3.5 ✅** G1–G9 · **Faz 4 ✅** Dockerfile + CI + Helm ([DEPLOYMENT.md](DEPLOYMENT.md)) |
+| **1 (buradan devam)** | Typed-client (`generate:api`) geçişi — karar bağlandı: üretilen client **commit'lenir** (aşağıya bkz.) · **ertelenen:** G9 bildirim tercihleri UI (`GET/PUT /api/notifications/preferences/{userId}`) — userId Keycloak `sub`'i, kullanıcı↔müşteri bağlantısı yok; anlamlı yer için o karar gerekli | **Faz 5** (secret sertleştirme) veya Faz 3 kalanları (JaCoCo coverage gate CI'a eklenmeye hazır; contract/newman testi) |
 
 **Açık kararlar (bloklamıyor):** CUSTOMER self-servisi için kullanıcı↔müşteri bağlantısı (Keycloak `sub` ≠ `customerId`;
-ilk FE sürümü CSR/ADMIN odaklı — [FRONTEND.md](FRONTEND.md) §13) · JaCoCo coverage eşiği (kapsam büyüyünce) ·
-üretilen client'ı commit'leme vs build-time spec üretimi (Faz 4'te karara bağlanacak) · Faz 5/6 kalemleri.
+ilk FE sürümü CSR/ADMIN odaklı — [FRONTEND.md](FRONTEND.md) §13) · JaCoCo coverage eşiği (kapsam büyüyünce; CI artık
+`verify` koştuğu için eşik tek satırlık iş) · Faz 5/6 kalemleri.
+> ✅ Karar (Faz 4): typed-client için **üretilen client commit'lenir** — `npm run generate:api` canlı stack ister,
+> CI'da stack yok; build-time spec üretimi (springdoc maven plugin) MinIO/Faz 6 dalgasına bırakıldı.
 
 **Kaldığın yerden hızlı başlatma:**
 ```bash
@@ -347,6 +360,10 @@ el yazımı mapper (docx MapStruct) · `Idempotency-Key`/`Correlation-Id` header
 OTel trace korelasyonu · FE SPA (docx'te scope-out — BFF konusunu sergilemek için bilinçli eklendi).
 
 ### ✅ Tamamlananlar
+- **Faz 4 — Paketleme, CI/CD & deployment** — parametrik layered Dockerfile + 14 imaj script'i; GitHub Actions
+  test-gate (backend/frontend/helm) + GHCR publish; Helm chart (Deployment/Service/HPA/probe/ConfigMap/Secret).
+  Gateway `contextLoads` testi Testcontainers Redis'e geçirildi → suite compose altyapısı olmadan yeşil (CI önkoşulu).
+  Bkz. [DEPLOYMENT.md](DEPLOYMENT.md).
 - **Abonelik yaşam döngüsü (G4, Faz 3.5)** — suspend/reactivate/terminate REST işlemleri (CSR/ADMIN, ilk yazma endpoint'leri; oluşturma yolu saga'da kalır); terminate MSISDN'i havuza döndürür + SIM'i kapatır; audit artık actor'lu (`AuditWriter`); üç domain event mevcut subscription outbox'ından `subscription-events`'e, notification SMS'e çevirir (V7). Migration gerekmedi (`suspended_at` V1'den beri vardı, entity'ye bağlandı).
 - **KYC mini akışı (G3, Faz 3.5)** — yeni müşteri PENDING doğar; adres/belge API'leri (fileRef mock); ADMIN onay/red durum makinesi (onay şartı ≥1 belge); `CustomerKYCApproved` → `customer-events` (customer outbox V3) → notification SMS (V6). Not: `CustomerMapper` artık `createdAt`'i damgalar (örtük NOT NULL hatası giderildi).
 - **Fatura bildirimleri (G2, Faz 3.5)** — bill-run `InvoiceGenerated` yayınlar; payment reply'ları müşteri/tutar taşır; notification `invoice-events`'ten üç fatura event'ini de EMAIL (mock) bildirimine çevirir (V5 şablonları + inbox IT).
@@ -385,10 +402,17 @@ OTel trace korelasyonu · FE SPA (docx'te scope-out — BFF konusunu sergilemek 
 - **Contract / API test** — OpenAPI spec doğrulama; kritik akışlar için Postman/newman koleksiyonu CI'da.
 - **Coverage gate** — kapsam büyüdükçe JaCoCo eşiği (örn. %70) build'de zorunlu hale getirilecek.
 
-### Faz 4 — Paketleme, CI/CD & deployment
-- **Dockerfile** (servis başına, layered veya Jib) — şu an yalnızca altyapı compose'da; iş servislerinin imajı yok.
-- **CI pipeline** (GitHub Actions) — `mvn verify` + Testcontainers + imaj build/push; PR'da otomatik gate.
-- **Kubernetes / Helm** — docx §5 stateless/HPA hedefi: deployment + service + HPA + `readiness/liveness/startup` probe + ConfigMap/Secret.
+### ✅ Faz 4 — Paketleme, CI/CD & deployment — TAMAMLANDI (2026-07-09)
+Ayrıntı ve kararlar: [DEPLOYMENT.md](DEPLOYMENT.md)
+- ✅ **Dockerfile** — tek parametrik layered imaj (Boot `tools` jarmode: `lib/` ayrı katman; non-root, JRE-alpine,
+  `HEALTHCHECK`); 14 servis `scripts/build-images.sh` ile (`common-lib` kütüphane, imajı yok). Jar Docker dışında
+  üretilir (CI maven cache'i); `.dockerignore` allowlist'i context'e yalnızca jar'ları taşır.
+- ✅ **CI pipeline** (GitHub Actions) — PR gate: backend `mvn verify` (Testcontainers) + frontend
+  (typecheck/vitest/build) + `helm lint`; `images` job'ı PR'da build-only, main push'unda GHCR'a publish
+  (`ghcr.io/<owner>/<repo>/<servis>:<kısa-sha>` + `:latest`; ek secret gerekmez).
+- ✅ **Kubernetes / Helm** — docx §5 hedefi: generic şablondan 14× Deployment + Service + HPA (gateway/order
+  varsayılan açık) + `readiness/liveness/startup` probe + ConfigMap (platform env) / Secret (demo DB parolası).
+  Altyapı bilinçli chart dışı (compose lokal, prod'da yönetilen servisler); `helm lint`+`template` CI'da.
 
 ### Faz 5 — Güvenlik sertleştirme (prod)
 - **Secret yönetimi** — README/realm/config'teki gömülü client-secret'ları çıkar; Vault veya K8s Secret + config-server `{cipher}` şifreleme.

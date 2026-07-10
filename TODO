@@ -1,8 +1,19 @@
 GUNCEL DEVAM NOKTASI -> README.md "DEVAM NOKTASI" + "Faz 3.5" bolumleri (tek kaynak orasidir).
 
-Kisa ozet (2026-07-04, Faz 3.5 TAMAM - G1..G9):
-- Faz 1 + Faz 2 tamam; 100 test yesil (Kafka'li saga IT + inbox-idempotency + tum G-isleri IT'leri)
-- FE Sprint 3 merge edildi (PR #21); Track A siradaki is: Sprint 4 (Billing + Subscriptions sayfalari)
+Kisa ozet (2026-07-09, Faz 4 TAMAM):
+- Faz 1 + Faz 2 + Faz 3.5 tamam; backend suite yesil (Kafka'li saga IT dahil), 67 FE test yesil
+- FAZ 4 TAMAM (ayrinti: DEPLOYMENT.md):
+  - Dockerfile: tek parametrik layered imaj (Boot tools jarmode, non-root, JRE-alpine);
+    14 servis scripts/build-images.sh ile (service:port haritasinin tek kaynagi)
+  - CI (.github/workflows/ci.yml): PR gate = mvn verify + FE typecheck/vitest/build + helm lint;
+    main push'unda GHCR'a imaj publish (ghcr.io/<owner>/<repo>/<servis>:<sha7> + :latest)
+  - Helm (deploy/helm/telco-crm): 14x Deployment/Service + HPA (gateway/order) + probe'lar +
+    ConfigMap/Secret; altyapi bilinclice chart disi (platformEnv ile adres verilir)
+  - Sağlamlik fix'i: gateway contextLoads testi Testcontainers Redis'e gecti ->
+    suite compose altyapisi OLMADAN yesil (CI onkosulu)
+  - KARAR: typed-client icin uretilen client COMMIT'lenir (CI'da canli stack yok;
+    build-time spec uretimi Faz 6'ya)
+- FE Sprint 3-5 merge edildi (PR #21/#33/#34/#35)
 - Faz 3.5 KAPANDI: G1 kota (#23), G2 fatura bildirim (#24), G3 KYC (#25), G4 yasam dongusu (#27),
   G5 siparis iptali (#28), G6 fatura PDF (#29), G7 ticket otomasyonu (#30), G8 dunning (#31), G9 kucukler TAMAM
 - DIKKAT (G3): yeni musteri PENDING dogar; siparis icin belge + ADMIN kyc/approve gerekir
@@ -14,10 +25,10 @@ Kisa ozet (2026-07-04, Faz 3.5 TAMAM - G1..G9):
 - KARAR (nihai): outbox common-lib'e CIKARILMADI; her servis kendi kopyasini tasir. Bir daha sorma.
 - Saga sertlestirme BACKLOG'da (docx gereksinimi degil; FR-10/12 karsilandi, IT'li)
 
-SIRADAKI: Faz 4 (docx genislik boslugu kalmadi; artik altyapi/CI)
-  - Faz 4: Dockerfile (her servis) + GitHub Actions CI test-gate (./mvnw test, Docker'li)
-  - typed-client (generate:api) karari CI ile birlikte
-  - Track A (FE): Sprint 4 (Billing + Subscriptions sayfalari)
+SIRADAKI:
+  - Track B: Faz 5 (secret sertlestirme: Vault/K8s Secret + {cipher}; TLS; gateway CORS/header)
+    veya Faz 3 kalanlari (JaCoCo coverage gate - CI verify kostugu icin tek satirlik; contract/newman)
+  - Track A (FE): typed-client (generate:api) gecisi - karar baglandi (client commit'lenir)
 
 Faz 3.5 tablosu (README "Faz 3.5" bolumu) — hepsi TAMAM:
   G1 Kota zinciri + CDR | G2 Fatura bildirim | G3 KYC | G4 Abonelik yasam dongusu |

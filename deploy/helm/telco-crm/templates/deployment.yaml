@@ -1,0 +1,68 @@
+# Generic Deployment sablonu — values.yaml services haritasindaki HER servis
+# icin bir Deployment uretir. Ortak env ConfigMap'ten (envFrom), servis-ozel
+# env'ler acik `env` girdileriyle gelir (env > envFrom onceligi).
+# Probe'lar actuator health group'larini kullanir (management.endpoint.health.
+# probes.enabled=true zaten global config'te acik).
+{{- range $name, $svc := .Values.services }}
+{{- $cfg := include "telco-crm.serviceConfig" (dict "root" $ "svc" $svc) | fromYaml }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    app.kubernetes.io/name: {{ $name }}
+    {{- include "telco-crm.labels" $ | nindent 4 }}
+spec:
+  {{- if not $cfg.hpa.enabled }}
+  replicas: {{ $cfg.replicas }}
+  {{- end }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ $name }}
+        app.kubernetes.io/part-of: telco-crm
+    spec:
+      containers:
+        - name: {{ $name }}
+          image: "{{ $.Values.image.registry }}/{{ $name }}:{{ $.Values.image.tag }}"
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ $cfg.port }}
+          envFrom:
+            - configMapRef:
+                name: telco-crm-platform-env
+            {{- if $cfg.db }}
+            - secretRef:
+                name: telco-crm-db-credentials
+            {{- end }}
+          env:
+            - name: SERVER_PORT
+              value: {{ $cfg.port | quote }}
+            {{- range $key, $val := $cfg.env }}
+            - name: {{ $key }}
+              value: {{ $val | quote }}
+            {{- end }}
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            periodSeconds: 5
+            failureThreshold: {{ $cfg.probes.startupFailureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 10
+          resources:
+            {{- $cfg.resources | toYaml | nindent 12 }}
+{{- end }}

@@ -1,0 +1,109 @@
+# ======================================================================
+# CI (Faz 4) - PR test-gate + main'de imaj publish (GHCR)
+#
+#   backend  : mvn verify (100 test; Testcontainers -> runner'daki Docker)
+#   frontend : npm ci + typecheck + vitest + build
+#              (Playwright E2E CI'da KOSMAZ: canli 14 servis + Keycloak ister;
+#               lokalde `npm run e2e` ile kosulur)
+#   helm     : chart lint + template render dogrulamasi
+#   images   : jar'lari paketle + 14 servis imajini build et;
+#              yalnizca main push'unda GHCR'a publish edilir
+#              (ghcr.io/<owner>/<repo>/<servis>:<kisa-sha> + :latest)
+#
+# PR'da images job'i build'e kadar gider ama push etmez -> Dockerfile
+# regresyonlari merge'den ONCE yakalanir.
+# ======================================================================
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  # PR'da eski kosuyu iptal et; main'de etme (yarim imaj publish'i kalmasin)
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  backend:
+    name: Backend testleri (mvn verify)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Derle + testler (Testcontainers dahil)
+        run: ./mvnw -B -ntp clean verify
+      - name: Surefire raporlarini yukle (hata analizi)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports
+          path: "**/target/surefire-reports/*"
+          retention-days: 7
+
+  frontend:
+    name: Frontend testleri (vitest + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run test
+      - run: npm run build
+
+  helm:
+    name: Helm chart dogrulamasi
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: helm lint + template
+        run: |
+          helm lint deploy/helm/telco-crm
+          helm template telco-crm deploy/helm/telco-crm > /dev/null
+
+  images:
+    name: Servis imajlari (build & publish)
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Boot jar'larini paketle (testler backend job'inda kostu)
+        run: ./mvnw -B -ntp package -DskipTests
+      - name: GHCR login (yalnizca main push)
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Imajlari uret (main push'ta publish)
+        env:
+          REGISTRY: ghcr.io/${{ github.repository }}
+          TAG: ${{ github.sha }}
+          EXTRA_TAG: latest
+          PUSH: ${{ github.event_name == 'push' }}
+        run: |
+          export TAG="${TAG:0:7}"
+          ./scripts/build-images.sh

@@ -1,0 +1,21 @@
+# Generic Service sablonu — servis adi = DNS adi (Eureka disindan da erisim:
+# SPRING_CONFIG_IMPORT http://config-server:8889 gibi adresler bu sayede cozulur).
+{{- range $name, $svc := .Values.services }}
+{{- $cfg := include "telco-crm.serviceConfig" (dict "root" $ "svc" $svc) | fromYaml }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    app.kubernetes.io/name: {{ $name }}
+    {{- include "telco-crm.labels" $ | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: {{ $name }}
+  ports:
+    - name: http
+      port: {{ $cfg.port }}
+      targetPort: http
+{{- end }}
