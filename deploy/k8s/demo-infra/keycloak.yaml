@@ -1,0 +1,87 @@
+# ======================================================================
+# DEMO Keycloak — dev mode + realm import (compose'daki telcocrm-keycloak esi).
+#
+# Realm ConfigMap'i chart'a GOMULMEZ; tek dogruluk kaynagi
+# docker/keycloak/telco-crm-realm.json kalsin diye script uretir:
+#   kubectl -n telco-crm create configmap keycloak-realm \
+#     --from-file=docker/keycloak/telco-crm-realm.json
+# (scripts/k8s-demo-up.sh bunu idempotent yapar.)
+#
+# ISSUER NOTU: servisler token'i "http://keycloak:8080/realms/telco-crm"
+# issuer'iyla dogrular (values.yaml KEYCLOAK_ISSUER). Disaridan token
+# alirken de ayni ismi kullan: hosts dosyasina "127.0.0.1 keycloak" ekle +
+# `kubectl port-forward svc/keycloak 8080:8080` -> iss claim birebir eslesir.
+# ======================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  namespace: telco-crm
+  labels:
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/part-of: telco-crm-demo-infra
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: keycloak
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: keycloak
+        app.kubernetes.io/part-of: telco-crm-demo-infra
+    spec:
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:26.1
+          args: ["start-dev", "--import-realm"]
+          env:
+            - name: KC_BOOTSTRAP_ADMIN_USERNAME
+              value: admin
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              value: admin           # demo; gercek secret yonetimi Faz 5
+            - name: KC_HOSTNAME_STRICT
+              value: "false"
+            - name: KC_HTTP_ENABLED
+              value: "true"
+          ports:
+            - name: http
+              containerPort: 8080
+          volumeMounts:
+            - name: realm-import
+              mountPath: /opt/keycloak/data/import
+          # Realm import bitmeden ready olmasin: realm endpoint'ine bak.
+          readinessProbe:
+            httpGet:
+              path: /realms/telco-crm
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 30
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
+      volumes:
+        - name: realm-import
+          configMap:
+            name: keycloak-realm
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: telco-crm
+  labels:
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/part-of: telco-crm-demo-infra
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: keycloak
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

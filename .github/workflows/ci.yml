@@ -74,6 +74,15 @@ jobs:
         run: |
           helm lint deploy/helm/telco-crm
           helm template telco-crm deploy/helm/telco-crm > /dev/null
+          # Lokal demo values'i da render edilebilir kalsin (curumesin)
+          helm template telco-crm deploy/helm/telco-crm \
+            -f deploy/helm/telco-crm/values-minikube.yaml > /dev/null
+      # kubectl dry-run BILEREK kullanilmadi: --dry-run=client bile API
+      # discovery icin canli cluster ister; kubeconform semayi offline dogrular.
+      - name: demo-infra manifest dogrulamasi (kubeconform)
+        run: |
+          curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz | tar xz
+          ./kubeconform -strict -summary deploy/k8s/demo-infra/
 
   images:
     name: Servis imajlari (build & publish)

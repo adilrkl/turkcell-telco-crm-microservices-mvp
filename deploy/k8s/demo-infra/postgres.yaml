@@ -1,0 +1,114 @@
+# ======================================================================
+# DEMO Postgres — compose'daki 10 ayri Postgres'in tek-instance dubloru.
+#
+# Prod'da her servisin DB'si ayri (yonetilen) olur; lokal K8s demosunda
+# RAM icin TEK instance icinde 10 database + 10 kullanici acilir
+# (kullanici/db adlari compose ve configs/*.yaml default'lariyla birebir).
+# values-minikube.yaml SPRING_DATASOURCE_URL'leri "postgres:5432"e ceker.
+#
+# Veri emptyDir'dedir: pod silinirse veri gider, Flyway acilista semayi
+# yeniden kurar — demo icin bilincli tercih (PVC yonetimi Faz 5/6).
+# ======================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-demo-init
+  namespace: telco-crm
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/part-of: telco-crm-demo-infra
+data:
+  # docker-entrypoint-initdb.d: yalnizca ILK acilista (bos data dizini) kosar.
+  init.sql: |
+    CREATE USER identity_user        WITH PASSWORD 'secret';
+    CREATE USER customer_user        WITH PASSWORD 'secret';
+    CREATE USER product_catalog_user WITH PASSWORD 'secret';
+    CREATE USER order_user           WITH PASSWORD 'secret';
+    CREATE USER subscription_user    WITH PASSWORD 'secret';
+    CREATE USER usage_user           WITH PASSWORD 'secret';
+    CREATE USER billing_user         WITH PASSWORD 'secret';
+    CREATE USER payment_user         WITH PASSWORD 'secret';
+    CREATE USER notification_user    WITH PASSWORD 'secret';
+    CREATE USER ticket_user          WITH PASSWORD 'secret';
+    CREATE DATABASE identity_db     OWNER identity_user;
+    CREATE DATABASE customer_db     OWNER customer_user;
+    CREATE DATABASE catalog_db      OWNER product_catalog_user;
+    CREATE DATABASE order_db        OWNER order_user;
+    CREATE DATABASE subscription_db OWNER subscription_user;
+    CREATE DATABASE usage_db        OWNER usage_user;
+    CREATE DATABASE billing_db      OWNER billing_user;
+    CREATE DATABASE payment_db      OWNER payment_user;
+    CREATE DATABASE notification_db OWNER notification_user;
+    CREATE DATABASE ticket_db       OWNER ticket_user;
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: telco-crm
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/part-of: telco-crm-demo-infra
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate            # tek yazici + emptyDir: iki kopya ayni anda olmasin
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: postgres
+        app.kubernetes.io/part-of: telco-crm-demo-infra
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          env:
+            - name: POSTGRES_USER
+              value: postgres
+            - name: POSTGRES_PASSWORD
+              value: secret          # demo; gercek secret yonetimi Faz 5
+          ports:
+            - name: pg
+              containerPort: 5432
+          volumeMounts:
+            - name: initdb
+              mountPath: /docker-entrypoint-initdb.d
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "postgres"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              memory: 768Mi
+      volumes:
+        - name: initdb
+          configMap:
+            name: postgres-demo-init
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: telco-crm
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/part-of: telco-crm-demo-infra
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: postgres
+  ports:
+    - name: pg
+      port: 5432
+      targetPort: pg

@@ -15,6 +15,13 @@ image:
   registry: ghcr.io/adilrkl/turkcell-telco-crm-microservices-mvp
   tag: latest
   pullPolicy: IfNotPresent
+  # GHCR paketi private ise docker-registry secret'inin ad(lar)i, orn:
+  #   kubectl -n telco-crm create secret docker-registry ghcr-pull \
+  #     --docker-server=ghcr.io --docker-username=<gh-user> --docker-password=<PAT>
+  #   pullSecrets: [ghcr-pull]
+  # Lokal demo (values-minikube.yaml) imajlari cluster icine build ettigi
+  # icin buna ihtiyac duymaz.
+  pullSecrets: []
 
 # Tum pod'lara ConfigMap (envFrom) ile enjekte edilir. Servis config'leri bu
 # env adlarini zaten okur (config-server configs/*.yaml icindeki ${VAR:default}

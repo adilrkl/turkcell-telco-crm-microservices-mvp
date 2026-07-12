@@ -26,6 +26,12 @@ spec:
         app.kubernetes.io/name: {{ $name }}
         app.kubernetes.io/part-of: telco-crm
     spec:
+      {{- with $.Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- range . }}
+        - name: {{ . }}
+        {{- end }}
+      {{- end }}
       containers:
         - name: {{ $name }}
           image: "{{ $.Values.image.registry }}/{{ $name }}:{{ $.Values.image.tag }}"

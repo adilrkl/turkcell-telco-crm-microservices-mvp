@@ -284,12 +284,15 @@ Temel mimari oturdu: config, service discovery, gateway + BFF, Keycloak güvenli
 Outbox/Inbox, Saga orchestration, mediator-tabanlı CQRS, rate limiting ve observability entegre.
 Frontend de artık bu repodadır (monorepo, `frontend/`); mimari kararları için [FRONTEND.md](FRONTEND.md).
 
-### 📍 DEVAM NOKTASI (son güncelleme: 2026-07-09 — **Faz 4 TAMAMLANDI**)
+### 📍 DEVAM NOKTASI (son güncelleme: 2026-07-13 — **Faz 4 TAMAMLANDI + lokal K8s demosu**)
 
 **Durum:** Faz 1 ✅ · Faz 2 ✅ · Faz 3 ilerliyor · **Faz 3.5: G1–G9 ✅** · FE Sprint 3–5 ✅ (67 FE test yeşil) ·
 **Faz 4 ✅** (parametrik layered Dockerfile + `scripts/build-images.sh` ile 14 servis imajı; GitHub Actions CI:
 backend `mvn verify` + frontend vitest/build + helm lint PR gate'i, main push'unda GHCR'a imaj publish;
 Helm chart: Deployment+Service+HPA+probe+ConfigMap/Secret — ayrıntı ve kararlar [DEPLOYMENT.md](DEPLOYMENT.md)) ·
+**Lokal K8s demosu ✅** (minikube'de uçtan uca: `scripts/k8s-demo-up.sh` — cluster içi demo altyapı
+[deploy/k8s/demo-infra/](deploy/k8s/demo-infra/) + [values-minikube.yaml](deploy/helm/telco-crm/values-minikube.yaml);
+runbook + gösteri egzersizleri [DEPLOYMENT.md](DEPLOYMENT.md) §3.1) ·
 Sıradaki backend işi: **Faz 5** (secret sertleştirme) veya Faz 3 kalanları (coverage gate, contract test).
 > ✅ Sağlamlık düzeltmesi (Faz 4 hazırlığı): gateway `contextLoads` testi gerçek `localhost:6379` Redis'ine
 > bağlanıyordu (compose kapalıyken/CI'da kırmızı); Testcontainers Redis'e geçirildi — suite artık compose
