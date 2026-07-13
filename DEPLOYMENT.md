@@ -96,6 +96,74 @@ birkaç restart atabilir; `optional:configserver:` + startup probe bunu tolere
 eder, init-container sıralaması bilinçli eklenmedi (K8s idiyomu: crash-loop
 yerine probe toleransı).
 
+**Private registry:** GHCR paketi private kalırsa `image.pullSecrets`
+(values.yaml'daki örnek komutla docker-registry secret'ı) verilir; lokal demo
+buna ihtiyaç duymaz (imajlar cluster içine build edilir, aşağıya bkz.).
+
+### 3.1 Lokal K8s demosu — minikube'de uçtan uca
+
+Chart'ı "kağıt üzerinde doğru"dan "çalışıyor"a taşıyan kurulum. Chart'ın
+kapsam sınırı değişmez: altyapı yine chart dışıdır; demo için hafifletilmiş
+kopyaları [deploy/k8s/demo-infra/](deploy/k8s/demo-infra/) ham manifest'leriyle
+**cluster içine** kurulur, adres farkları
+[values-minikube.yaml](deploy/helm/telco-crm/values-minikube.yaml) ile ezilir.
+
+| Compose'daki hali | Demo'daki hali | Neden |
+|---|---|---|
+| 10 ayrı PostgreSQL | **tek** Postgres, 10 database + 10 kullanıcı (initdb) | RAM; kullanıcı/db adları birebir aynı, servisler farkı bilmez |
+| Kafka `localhost:9092` advertise eder | Kafka `kafka:9092` advertise eder | pod içinde localhost = pod'un kendisi; cluster DNS adı şart |
+| Keycloak `:8095`, realm bind-mount | Keycloak `keycloak:8080`, realm ConfigMap (tek kaynak: `docker/keycloak/`) | issuer `http://keycloak:8080/...` values ile birebir |
+| Grafana/Tempo/Loki/Prometheus/otel | **kurulmaz** | `TRACE_SAMPLING=0.0` + Loki appender'ı yalnız `dev` profilinde |
+| requests yok (host JVM) | 256Mi request / 768Mi limit + `-XX:MaxRAMPercentage=50` | rezervasyon laptop'a sığsın; taşan pod OOMKill ile görünür olsun |
+
+**Kurulum (Git Bash):**
+```bash
+minikube start --cpus=4 --memory=8g   # ilk sefer; Docker Desktop'a en az bu kadar kaynak ver
+kubectl config current-context        # "minikube" olmalı! (eski bir cluster'a bakıyorsa:
+                                      #  kubectl config use-context minikube)
+export JAVA_HOME=<jdk-21> && ./mvnw -B package -DskipTests
+scripts/k8s-demo-up.sh                # imaj build (cluster içine) + altyapı + helm install
+kubectl get pods -n telco-crm -w      # 3-5 dk; birkaç restart NORMAL (config/eureka sırası)
+```
+> Docker Desktop K8s'te: `SKIP_DOCKER_ENV=true scripts/k8s-demo-up.sh`
+> (imajlar zaten aynı daemon'da; metrics-server'ı elle kur).
+
+**Doğrulama & gösteri egzersizleri:**
+```bash
+# 1) Self-healing: pod öldür, Deployment yenisini yaratsın
+kubectl delete pod -n telco-crm -l app.kubernetes.io/name=customer-service
+kubectl get pods -n telco-crm -w
+
+# 2) HPA: CPU yükü bas (port-forward sonrası k6/hey/curl döngüsü), ölçek izle
+kubectl get hpa -n telco-crm -w
+
+# 3) Ölçek + Eureka: kopyalar isimle bulunmaya devam eder (prefer-ip-address)
+kubectl scale deploy/usage-service -n telco-crm --replicas=3
+
+# 4) Rolling update/rollback (imaj tag'i değiştirerek)
+kubectl rollout status deploy/order-service -n telco-crm
+kubectl rollout undo   deploy/order-service -n telco-crm
+
+# 5) Node bakımı simülasyonu (çok node'lu başlatıldıysa: minikube start --nodes=2)
+kubectl drain minikube-m02 --ignore-daemonsets --delete-emptydir-data
+
+# API dumanı: gateway üzerinden (JWT için aşağıdaki issuer notu)
+kubectl port-forward -n telco-crm svc/gateway-server 8888:8888
+```
+
+**Dışarıdan token almak (issuer eşleşmesi):** servisler `iss ==
+http://keycloak:8080/realms/telco-crm` bekler → hosts dosyasına
+`127.0.0.1 keycloak` ekle + `kubectl port-forward -n telco-crm svc/keycloak
+8080:8080`, token'ı `http://keycloak:8080` üzerinden al (testuser/csruser —
+realm import'la gelir). SPA'yı bağlamak istersen aynı yol + BFF port-forward
+(9000) yeter; kalıcı çözüm (Ingress) Faz 5.
+
+**Bilinçli demo sınırları:** veri kalıcı değil (emptyDir/AOF'suz — pod ölünce
+Flyway/auto-create yeniden kurar), secret'lar düz metin demo değerleri,
+Ingress/TLS yok, observability yok. Bunlar Faz 5/6 kalemleridir; demo'nun
+amacı deploy mekanizmasını ve K8s davranışlarını (self-healing, HPA, rollout)
+kanıtlamaktır. Temizlik: `scripts/k8s-demo-down.sh` (namespace'i siler).
+
 ## 4. Bilinçli kararlar & sonraya bırakılanlar
 
 - **Frontend imajı yok:** SPA dev'de Vite proxy ile çalışır; prod servis şekli

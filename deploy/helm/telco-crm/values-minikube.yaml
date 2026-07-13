@@ -1,0 +1,80 @@
+# ======================================================================
+# Lokal K8s demosu (minikube / Docker Desktop K8s) icin values eki.
+# Kullanim (base values.yaml ile MERGE edilir, yalnizca farklar burada):
+#   helm upgrade --install telco-crm deploy/helm/telco-crm \
+#     -n telco-crm -f deploy/helm/telco-crm/values-minikube.yaml
+#
+# Uc is yapar (gerekce: DEPLOYMENT.md §3.1):
+#   1. Imaj kaynagi: GHCR yerine lokal build (scripts/build-images.sh ->
+#      telco-crm/<servis>:local; minikube docker-env icine build edilir).
+#   2. Kaynak diyeti: requests kuculur (rezervasyon laptop'a sigsin),
+#      JVM heap MaxRAMPercentage ile limit'e oranlanir.
+#   3. Altyapi adresleri: deploy/k8s/demo-infra'daki tek Postgres'e isaret
+#      eder; Kafka/Redis/Keycloak adlari base values ile zaten ayni.
+# ======================================================================
+
+image:
+  registry: telco-crm
+  tag: local
+  # Never: imaj cluster'in icinde yoksa ACIK hata (ErrImageNeverPull) ver;
+  # IfNotPresent olsaydi docker.io/telco-crm/* diye anlamsiz pull denerdi.
+  pullPolicy: Never
+
+platformEnv:
+  # Observability stack'i demoya kurulmuyor:
+  # - loglar: prod profilinde Loki appender zaten devrede degil (logback-spring.xml)
+  # - trace'ler: sampling 0 -> span uretilmez, OTLP endpoint'i aranmaz
+  TRACE_SAMPLING: "0.0"
+  # Container-aware heap: limit'in %50'si (256Mi limitte ~128m, 768Mi'de ~384m).
+  # Sabit -Xmx yerine oran: limit degisince ayri ayri elle guncelleme gerekmez.
+  JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=50"
+
+defaults:
+  resources:
+    requests:
+      cpu: 100m        # scheduler rezervasyonu; kullanim serbest (cpu limit yok)
+      memory: 256Mi
+    limits:
+      memory: 768Mi    # JVM taskinliginda OOMKill siniri
+  probes:
+    # Dar CPU'da 14 JVM ayni anda acilirken 180s yetmeyebilir -> 300s.
+    startupFailureThreshold: 60
+
+# Demo'da RAM tasarrufu: gateway tek kopya baslasin (HPA yine acik, yuk
+# gelirse buyur). Prod values'taki min 2 idiyomu DEPLOYMENT.md'de anlatilir.
+services:
+  gateway-server:
+    hpa:
+      minReplicas: 1
+  # 10 ayri Postgres yerine demo-infra'daki tek instance (10 database).
+  # Kullanici adlari degismez: her servis kendi <servis>_user default'unu okur.
+  identity-service:
+    env:
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/identity_db"
+  customer-service:
+    env:
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/customer_db"
+  product-catalog-service:
+    env:
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/catalog_db"
+  order-service:
+    env:
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/order_db"
+  subscription-service:
+    env:
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/subscription_db"
+  usage-service:
+    env:
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/usage_db"
+  billing-service:
+    env:
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/billing_db"
+  payment-service:
+    env:
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/payment_db"
+  notification-service:
+    env:
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/notification_db"
+  ticket-service:
+    env:
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/ticket_db"

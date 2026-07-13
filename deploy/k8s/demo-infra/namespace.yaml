@@ -1,0 +1,8 @@
+# Demo namespace — uygulama chart'i da (helm -n telco-crm) buraya kurulur.
+# Temizlik: `kubectl delete ns telco-crm` her seyi (helm release dahil) siler.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: telco-crm
+  labels:
+    app.kubernetes.io/part-of: telco-crm
