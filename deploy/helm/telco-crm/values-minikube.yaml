@@ -37,8 +37,11 @@ defaults:
     limits:
       memory: 768Mi    # JVM taskinliginda OOMKill siniri
   probes:
-    # Dar CPU'da 14 JVM ayni anda acilirken 180s yetmeyebilir -> 300s.
-    startupFailureThreshold: 60
+    # Dar CPU'da 14 JVM ayni anda acilirken acilis 5-10 dk surebiliyor
+    # (olculdu: 4 CPU'da JVM basina pay ~0.25 core'a dusuyor). 300s'lik
+    # tolerans acilista pod'lari olduruyordu -> restart firtinasi. 600s ver;
+    # alternatif: uygulamalari 3-4'lu dalgalar halinde acmak (DEPLOYMENT.md).
+    startupFailureThreshold: 120
 
 # Demo'da RAM tasarrufu: gateway tek kopya baslasin (HPA yine acik, yuk
 # gelirse buyur). Prod values'taki min 2 idiyomu DEPLOYMENT.md'de anlatilir.

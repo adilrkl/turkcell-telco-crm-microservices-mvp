@@ -53,22 +53,30 @@ spec:
             - name: {{ $key }}
               value: {{ $val | quote }}
             {{- end }}
+          # timeoutSeconds onemli: K8s default'u 1s — toplu acilista yuk altindaki
+          # JVM 1s'de cevap veremeyip "olu" sayiliyordu (config-server'in kubelet
+          # tarafindan oldurulmesi minikube demosunda boyle bulundu). Liveness
+          # ayrica yuksek failureThreshold tasir: yavas != olu.
           startupProbe:
             httpGet:
               path: /actuator/health
               port: http
             periodSeconds: 5
+            timeoutSeconds: 3
             failureThreshold: {{ $cfg.probes.startupFailureThreshold }}
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness
               port: http
             periodSeconds: 10
+            timeoutSeconds: 3
           livenessProbe:
             httpGet:
               path: /actuator/health/liveness
               port: http
             periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
           resources:
             {{- $cfg.resources | toYaml | nindent 12 }}
 {{- end }}
