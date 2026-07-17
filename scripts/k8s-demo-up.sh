@@ -49,7 +49,7 @@ cat <<'EOF'
 
 Kurulum tamam. Izlemek icin:
   kubectl get pods -n telco-crm -w
-Ilk acilis 3-5 dk surebilir (once config-server/eureka, digerleri startup
+Ilk acilis taze makinede 20-25 dk surebilir (once config-server/eureka, digerleri startup
 probe toleransiyla arkadan gelir; birkac restart NORMALDIR).
 
 Gateway'e erisim:

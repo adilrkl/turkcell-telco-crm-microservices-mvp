@@ -123,7 +123,10 @@ kubectl config current-context        # "minikube" olmalı! (eski bir cluster'a 
                                       #  kubectl config use-context minikube)
 export JAVA_HOME=<jdk-21> && ./mvnw -B package -DskipTests
 scripts/k8s-demo-up.sh                # imaj build (cluster içine) + altyapı + helm install
-kubectl get pods -n telco-crm -w      # 3-5 dk; birkaç restart NORMAL (config/eureka sırası)
+kubectl get pods -n telco-crm -w      # taze makinede 20-25 dk; pod başına 3-5 restart NORMAL
+                                      # (altyapı imajları iner, postgres ilk init'te yavaştır,
+                                      #  DB'li servisler onu bekleyip yeniden dener — MÜDAHALE ETME;
+                                      #  ölçüldü: 2026-07-17 taze kurulum provası, uçtan uca ~40 dk)
 ```
 > Docker Desktop K8s'te: `SKIP_DOCKER_ENV=true scripts/k8s-demo-up.sh`
 > (imajlar zaten aynı daemon'da; metrics-server'ı elle kur).
