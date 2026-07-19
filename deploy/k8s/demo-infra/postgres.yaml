@@ -65,6 +65,15 @@ spec:
       containers:
         - name: postgres
           image: postgres:16-alpine
+          # 10 DB'li servis x Hikari varsayilan havuzu 10 = 100 kalici baglanti;
+          # varsayilan max_connections=100'u tek basina doldurur. Rolling update
+          # veya HPA ile EK pod geldiginde yeni Hikari havuzu slot bulamaz ve
+          # servis "remaining connection slots are reserved for SUPERUSER"
+          # hatasiyla acilamaz (2026-07-17 canli kosuda yasandi: HPA order'i
+          # 2'ye cikardi, yeni kopya CrashLoop'a girdi). Tepe ihtiyac ~140
+          # (100 + HPA/rolling paylari); 200 rahat pay birakir. Kalici cozum
+          # adayi: configs/application.yaml'da Hikari max-pool-size'i dusurmek.
+          args: ["-c", "max_connections=200"]
           env:
             - name: POSTGRES_USER
               value: postgres
