@@ -7,10 +7,10 @@ tek platformda entegre edilmiştir.
 
 ## Ekip
 
-- Adil Arkalı
-- Erol Koçoğlu
-- Ayşe Ulaşlı
-- Eren Eray Yılmaz
+- Adil Arkalı (https://github.com/adilrkl)
+- Erol Koçoğlu (https://github.com/ErolKocoglu)
+- Ayşe Ulaşlı (https://github.com/aaayseee)
+- Eren Eray Yılmaz (https://github.com/erenerayyilmaz)
 
 ## Teknoloji Stack'i
 
