@@ -4,7 +4,7 @@
 #   helm upgrade --install telco-crm deploy/helm/telco-crm \
 #     -n telco-crm -f deploy/helm/telco-crm/values-minikube.yaml
 #
-# Uc is yapar (gerekce: DEPLOYMENT.md §3.1):
+# Uc is yapar (gerekce: docs/operations.md §3.1):
 #   1. Imaj kaynagi: GHCR yerine lokal build (scripts/build-images.sh ->
 #      telco-crm/<servis>:local; minikube docker-env icine build edilir).
 #   2. Kaynak diyeti: requests kuculur (rezervasyon laptop'a sigsin),
@@ -37,14 +37,12 @@ defaults:
     limits:
       memory: 768Mi    # JVM taskinliginda OOMKill siniri
   probes:
-    # Dar CPU'da 14 JVM ayni anda acilirken acilis 5-10 dk surebiliyor
-    # (olculdu: 4 CPU'da JVM basina pay ~0.25 core'a dusuyor). 300s'lik
-    # tolerans acilista pod'lari olduruyordu -> restart firtinasi. 600s ver;
-    # alternatif: uygulamalari 3-4'lu dalgalar halinde acmak (DEPLOYMENT.md).
+    # Dar CPU'da 14 JVM ayni anda acilirken acilis 5-10 dk surebilir;
+    # 120 x 5s = 600s tolerans gerekir (gerekce: docs/operations.md §3.1).
     startupFailureThreshold: 120
 
 # Demo'da RAM tasarrufu: gateway tek kopya baslasin (HPA yine acik, yuk
-# gelirse buyur). Prod values'taki min 2 idiyomu DEPLOYMENT.md'de anlatilir.
+# gelirse buyur). Prod values'taki min 2 idiyomu docs/operations.md'de anlatilir.
 services:
   gateway-server:
     hpa:

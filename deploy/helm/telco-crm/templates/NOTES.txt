@@ -11,4 +11,4 @@ BFF (SPA login katmani):
 UNUTMA: Bu chart yalnizca uygulama servislerini kurar. PostgreSQL'ler, Kafka,
 Redis, Keycloak ve observability altyapisinin values.yaml platformEnv +
 services.*.env.SPRING_DATASOURCE_URL adreslerinden erisilebilir olmasi gerekir
-(detay: DEPLOYMENT.md).
+(detay: docs/operations.md).
