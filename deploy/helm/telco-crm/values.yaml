@@ -1,5 +1,5 @@
 # ======================================================================
-# telco-crm chart degerleri (Faz 4)
+# telco-crm chart degerleri
 #
 # Kapsam: yalnizca uygulama servisleri. Altyapi (postgres'ler, kafka, redis,
 # keycloak, otel/tempo/loki/prometheus) bu chart'in DISINDA kalir — lokalde
@@ -73,15 +73,11 @@ services:
   config-server:
     port: 8889
     env:
-      # platformEnv'deki SPRING_PROFILES_ACTIVE=prod, config-server'in kendi
-      # application.yaml'indaki `native` profilini ezer -> git backend'ine
-      # duser ve "git URI yok" hatasiyla cokerdi (minikube demosunda bulundu).
-      # native'i acikca geri ver; prod da kalsin (springdoc kapali vb.).
+      # platformEnv'deki prod, application.yaml'daki `native` profilini ezer;
+      # native olmadan config-server git backend'i arar ve acilamaz.
       SPRING_PROFILES_ACTIVE: "native,prod"
-      # Kendine SPRING_CONFIG_IMPORT gitmemeli: server her istemci istegi icin
-      # icte mini context acar; env'deki import o context'te de calisir ->
-      # kendine HTTP istek dongusu -> thread tukenmesi -> probe timeout ->
-      # kubelet SIGKILL (minikube demosunda bulundu). Bos deger import'u kapatir.
+      # Config-server kendine config-import yapmamali (istemci istekleri icin
+      # actigi ic context'ler kendine HTTP dongusune girer); bos deger kapatir.
       SPRING_CONFIG_IMPORT: ""
   eureka-server:
     port: 8761

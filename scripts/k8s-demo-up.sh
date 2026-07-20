@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # ======================================================================
-# Lokal K8s demosu — tek komutla uctan uca kurulum (DEPLOYMENT.md §3.1).
+# Lokal K8s demosu — tek komutla uctan uca kurulum (docs/operations.md §3.1).
 #
 # On kosullar:
 #   - minikube ayakta:  minikube start --cpus=4 --memory=8g
 #   - jar'lar uretilmis: ./mvnw -B package -DskipTests   (JAVA_HOME=JDK21)
 #
 # Ne yapar (sirasiyla):
-#   1. Imajlari minikube'un Docker'ina build eder (image load'dan hizli:
-#      save/load tar kopyasi yok, dogrudan cluster'in daemon'inda uretilir).
+#   1. Imajlari minikube'un Docker'ina build eder (docker-env; image load'un
+#      tar kopyasindan hizli).
 #   2. metrics-server addon'unu acar (HPA'nin CPU metrigi icin).
 #   3. Demo altyapisini kurar: namespace + tek Postgres(10 db) + Kafka +
 #      Redis + Keycloak (realm ConfigMap'i docker/keycloak'tan uretilir).
@@ -25,7 +25,7 @@ echo "==> [1/4] Imajlar cluster icine build ediliyor (telco-crm/*:local)"
 if [[ "${SKIP_DOCKER_ENV:-false}" != "true" ]]; then
   eval "$(minikube docker-env --shell bash)"
 fi
-scripts/build-images.sh   # REGISTRY=telco-crm TAG=local (script default'lari)
+scripts/build-images.sh
 
 echo "==> [2/4] metrics-server addon (HPA icin)"
 if [[ "${SKIP_DOCKER_ENV:-false}" != "true" ]]; then
@@ -49,8 +49,8 @@ cat <<'EOF'
 
 Kurulum tamam. Izlemek icin:
   kubectl get pods -n telco-crm -w
-Ilk acilis taze makinede 20-25 dk surebilir (once config-server/eureka, digerleri startup
-probe toleransiyla arkadan gelir; birkac restart NORMALDIR).
+Ilk acilis taze makinede 20-25 dk surebilir; once config-server/eureka acilir,
+digerleri startup probe toleransiyla arkadan gelir. Birkac restart beklenen davranistir.
 
 Gateway'e erisim:
   kubectl port-forward -n telco-crm svc/gateway-server 8888:8888

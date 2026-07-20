@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ======================================================================
-# Tum servis imajlarini tek parametrik Dockerfile'dan uretir (Faz 4).
+# Tum servis imajlarini tek parametrik Dockerfile'dan uretir.
 # On kosul: jar'lar uretilmis olmali -> ./mvnw -B package -DskipTests
 #
 # Kullanim:
