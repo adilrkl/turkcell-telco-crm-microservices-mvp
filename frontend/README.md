@@ -126,7 +126,7 @@ kataloğu, fatura kayıtları, destek talepleri, rol-bazlı görünümler. AntD 
 
 ### Neden elle axios değil, OpenAPI'den üretim?
 
-Backend zaten **Springdoc OpenAPI** üretiyor (bkz. `OPENAPI.md`): her REST servis
+Backend zaten **Springdoc OpenAPI** üretiyor (bkz. kök [README](../README.md) — OpenAPI bölümü): her REST servis
 `/v3/api-docs` (JSON spec) ve `/swagger-ui.html` açıyor. Bu, FE'de **spec'ten tam tipli
 client SDK üretmek** için hazır zemindir.
 
@@ -150,7 +150,7 @@ Avantajları:
 
 ### Servis-bazlı spec sorunu (önemli)
 
-`OPENAPI.md` §2'de belirtildiği gibi, **gateway/BFF üzerinde merkezi OpenAPI aggregation
+**Gateway/BFF üzerinde merkezi OpenAPI aggregation
 şu an YOK**; her servis kendi spec'ini üretir. Spec açık olan servisler (8/10 —
 yalnızca payment ve notification REST'sizdir; spec'ler gateway'den DEĞİL doğrudan servis
 portundan çekilir, `openapitools.json` bu portları hedeflemeli):
@@ -173,7 +173,7 @@ portundan çekilir, `openapitools.json` bu portları hedeflemeli):
    `src/api/catalog`). Basit, hemen çalışır. Yeni servise OpenAPI eklendikçe genişler.
 2. **Gateway'de merkezi aggregation (sonraki adım).** Gateway'e tüm servis spec'lerini
    birleştiren bir aggregation eklenip **tek spec'ten** generate edilir. Daha temiz, ama
-   backend işi gerektirir. (`OPENAPI.md` §10'da "sonraki adım" olarak zaten listeli.)
+   backend işi gerektirir.
 
 ### Üretim otomasyonu
 
