@@ -558,5 +558,5 @@ consumer) zaten event-handler yapısındadır; controller→command/query split'
 
 - **Birim/izolasyon:** `SpringMediatorTest` (DB/Kafka/Redis gerektirmez) — `./mvnw -pl common-lib test`.
 - **Uçtan uca:** Proje kök dizinindeki
-  **[telco_crm_postman_collection.json](../telco_crm_postman_collection.json)** koleksiyonu. Endpoint'ler ve
+  **[product_catalog_postman_collection.json](../product_catalog_postman_collection.json)** koleksiyonu. Endpoint'ler ve
   JSON gövdeleri değişmediği için mevcut istekler aynen çalışır.
