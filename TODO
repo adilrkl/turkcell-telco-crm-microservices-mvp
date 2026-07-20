@@ -1,43 +1,77 @@
-GUNCEL DEVAM NOKTASI -> README.md "DEVAM NOKTASI" + "Faz 3.5" bolumleri (tek kaynak orasidir).
+# TODO ve Gelecek Fikirleri
 
-Kisa ozet (2026-07-09, Faz 4 TAMAM):
-- Faz 1 + Faz 2 + Faz 3.5 tamam; backend suite yesil (Kafka'li saga IT dahil), 67 FE test yesil
-- FAZ 4 TAMAM (ayrinti: DEPLOYMENT.md):
-  - Dockerfile: tek parametrik layered imaj (Boot tools jarmode, non-root, JRE-alpine);
-    14 servis scripts/build-images.sh ile (service:port haritasinin tek kaynagi)
-  - CI (.github/workflows/ci.yml): PR gate = mvn verify + FE typecheck/vitest/build + helm lint;
-    main push'unda GHCR'a imaj publish (ghcr.io/<owner>/<repo>/<servis>:<sha7> + :latest)
-  - Helm (deploy/helm/telco-crm): 14x Deployment/Service + HPA (gateway/order) + probe'lar +
-    ConfigMap/Secret; altyapi bilinclice chart disi (platformEnv ile adres verilir)
-  - Sağlamlik fix'i: gateway contextLoads testi Testcontainers Redis'e gecti ->
-    suite compose altyapisi OLMADAN yesil (CI onkosulu)
-  - KARAR: typed-client icin uretilen client COMMIT'lenir (CI'da canli stack yok;
-    build-time spec uretimi Faz 6'ya)
-- FE Sprint 3-5 merge edildi (PR #21/#33/#34/#35)
-- Faz 3.5 KAPANDI: G1 kota (#23), G2 fatura bildirim (#24), G3 KYC (#25), G4 yasam dongusu (#27),
-  G5 siparis iptali (#28), G6 fatura PDF (#29), G7 ticket otomasyonu (#30), G8 dunning (#31), G9 kucukler TAMAM
-- DIKKAT (G3): yeni musteri PENDING dogar; siparis icin belge + ADMIN kyc/approve gerekir
-- DIKKAT (G9): musteri olusturmada TCKN/VKN artik ZORUNLU + algoritmik dogrulanir (INDIVIDUAL->TCKN,
-  CORPORATE->VKN; gecersiz/eksik -> 422). Demo seed SQL ile eklendigi icin etkilenmez.
-- G9 notlari: soft-delete DELETE /api/customers/{id} (@SQLRestriction ile silinen okunamaz);
-  opt-in/out notification_preferences + NotificationDispatcher (6 handler ortaklastirildi),
-  PUT/GET /api/notifications/preferences/{userId}; opt-out -> bildirim SKIPPED.
-- KARAR (nihai): outbox common-lib'e CIKARILMADI; her servis kendi kopyasini tasir. Bir daha sorma.
-- Saga sertlestirme BACKLOG'da (docx gereksinimi degil; FR-10/12 karsilandi, IT'li)
+Son güncelleme: 2026-07-20
 
-SIRADAKI:
-  - Track B: Faz 5 (secret sertlestirme: Vault/K8s Secret + {cipher}; TLS; gateway CORS/header)
-    veya Faz 3 kalanlari (JaCoCo coverage gate - CI verify kostugu icin tek satirlik; contract/newman)
-  - Track A (FE): typed-client (generate:api) gecisi - karar baglandi (client commit'lenir)
+Bu dosya yalnızca açık işleri ve gelecekte değerlendirilebilecek fikirleri içerir.
+Tamamlanan fazlar ve geçmiş kararlar için `docs/roadmap.md`, operasyon ayrıntıları için
+`docs/operations.md` kullanılmalıdır.
 
-Faz 3.5 tablosu (README "Faz 3.5" bolumu) — hepsi TAMAM:
-  G1 Kota zinciri + CDR | G2 Fatura bildirim | G3 KYC | G4 Abonelik yasam dongusu |
-  G5 Siparis iptali | G6 Fatura PDF | G7 Ticket otomasyonu | G8 Dunning retry | G9 Kucukler (TCKN/VKN,
-  soft-delete, opt-in/out)
+## 1. Ürün ve kullanıcı deneyimi
 
-Track A (FE) icin hazir API'ler: GET /api/usage/quota, KYC onay/red + adres/belge,
-  POST /api/subscriptions/{id}/suspend|reactivate|terminate, POST /api/orders/{id}/cancel,
-  GET /api/billing/invoices/{id}/pdf, POST /api/tickets (SLA/team otomatik),
-  DELETE /api/customers/{id}, GET|PUT /api/notifications/preferences/{userId}
+- [ ] Keycloak kullanıcısı ile CRM müşteri kaydı arasında kalıcı ilişki kur (`sub -> customerId`).
+- [ ] Müşteri self-servis ekranlarını tamamla: profil, aboneliklerim, faturalarım, kullanımım ve destek taleplerim.
+- [ ] Bildirim tercihlerini müşteri profilinden yönetilebilen bir arayüze bağla.
+- [ ] Tarife karşılaştırma ve tarife değiştirme akışı ekle.
+- [ ] Kampanya, indirim, sadakat puanı ve kişiye uygun teklif senaryolarını değerlendir.
+- [ ] Kurumsal müşteriler için çoklu hat, yetkili kişi ve toplu faturalama akışı tasarla.
+- [ ] Ticket kapandıktan sonra memnuniyet puanı ve kısa geri bildirim topla.
+- [ ] Türkçe/İngilizce dil seçeneği, erişilebilirlik ve mobil ekran uyumluluğunu iyileştir.
 
-Bilincli scope-out ve docx'ten bilincli sapmalar: README "Faz 3.5" bolumunun altinda.
+## 2. İş ve sunum tarafı
+
+- [ ] CUSTOMER, CSR, katalog yöneticisi ve faturalama yöneticisi için persona ve kullanıcı yolculukları hazırla.
+- [ ] Kabul kriterlerini iş diliyle yaz; her kritik senaryo için "başarılı sayılma" koşulunu belirt.
+- [ ] Yönetim paneline iş metrikleri ekle: aktif abone, aylık gelir, ödeme başarı oranı, kullanım/aşım, açık ticket ve SLA ihlali.
+- [ ] KVKK/onay metni, iletişim izni, veri saklama ve hesap silme politikalarını tanımla.
+- [ ] Projenin kısa tanıtım videosunu, mimari görselini ve ekran görüntülerini hazırla.
+- [ ] Gerçek operatör ortamına geçişte gerekli dış paydaşları ve entegrasyonları listele: ödeme kuruluşu, SMS/e-posta sağlayıcısı, e-fatura ve kimlik doğrulama.
+
+## 3. Test ve geliştirici deneyimi
+
+- [ ] OpenAPI'den üretilen typed frontend client'a geçişi tamamla; üretilen client repoda tutulacak.
+- [ ] OpenAPI contract doğrulaması ve kritik API akışları için Newman testlerini CI'a ekle.
+- [ ] JaCoCo coverage gate için gerçekçi bir başlangıç eşiği belirle ve kademeli artır.
+- [ ] Playwright uçtan uca testlerini kritik kullanıcı yolculuklarını kapsayacak şekilde genişlet; CI/nightly çalışma stratejisini belirle.
+- [ ] Test verisi üreticileri ve ortak fixture'larla entegrasyon testlerindeki tekrarı azalt.
+- [ ] Saga timeout süresini konfigürasyona taşı ve compensation cevaplarını bekleyen iki aşamalı iptal modelini değerlendir.
+- [ ] API değişikliklerinde frontend client/spec uyumsuzluğunu otomatik yakala.
+
+## 4. Güvenlik ve üretim hazırlığı
+
+- [ ] Repodaki gömülü client secret ve parolaları kaldır; Vault/Kubernetes Secret veya eşdeğer bir secret manager kullan.
+- [ ] Gateway/BFF önünde HTTPS; gerekiyorsa servisler arasında mTLS uygula.
+- [ ] CORS allowlist, güvenlik header'ları, request-size sınırı ve downstream timeout politikalarını sertleştir.
+- [ ] Keycloak'u production veritabanı, yedekleme, token politikaları ve secret rotasyonu ile çalıştır.
+- [ ] CUSTOMER sahiplik testleri yanında yetki matrisi ve negatif güvenlik testleri oluştur.
+- [ ] Hassas veriler için alan bazlı şifreleme, maskeleme ve audit erişim politikası belirle.
+- [ ] Bağımlılık ve container image güvenlik taramasını CI'a ekle.
+
+## 5. Operasyon ve ölçek
+
+- [ ] Production profillerinde connection pool, timeout, retry ve actuator erişimlerini ayarla.
+- [ ] Alertmanager kuralları ekle: hata oranı, takılı saga, Kafka consumer lag, ödeme hatası ve 429 artışı.
+- [ ] Deploy, rollback, DLQ replay ve manuel saga telafisi için runbook hazırla.
+- [ ] k6 veya Gatling ile gateway ve sipariş saga'sı yük testi yap; kapasite hedeflerini belgeye yaz.
+- [ ] Veritabanları, Keycloak ve Kafka için yedekleme/geri yükleme tatbikatı yap.
+- [ ] MinIO/S3 ile kimlik belgelerini ve fatura PDF'lerini kalıcı sakla; yaşam döngüsü ve silme politikası ekle.
+- [ ] Gerçek SMS/e-posta ve ödeme sağlayıcıları için adapter geliştir; demo mock'larını profil üzerinden seçilebilir tut.
+- [ ] SLO/SLA hedefleri ve hata bütçesi belirle; Grafana dashboard'larını bu hedeflerle ilişkilendir.
+
+## 6. Uzun vadeli fikir havuzu
+
+Bu bölüm taahhüt edilmiş backlog değildir; ürün büyürse değerlendirilebilir.
+
+- [ ] Numara taşıma (MNP), eSIM, prepaid/top-up ve ek paket/VAS desteği.
+- [ ] Mobil uygulama veya PWA.
+- [ ] Churn riski, tarife önerisi ve anomali tespiti; yalnızca anonim/sentetik veriyle prototiple.
+- [ ] Bayi/mağaza kanalı ve saha satış akışı.
+- [ ] Aile hesabı, ortak kota ve çoklu abonelik yönetimi.
+- [ ] Çoklu ülke, para birimi, vergi ve faturalama dönemi desteği.
+- [ ] Event şemaları için schema registry ve geriye uyumluluk politikası.
+- [ ] Yoğun servisler için bağımsız ölçekleme, partition stratejisi ve gerekirse multi-region mimarisi.
+
+## Bilinçli notlar
+
+- Yeni fikirler doğrudan geliştirmeye alınmadan önce fayda, maliyet, risk ve demo değerine göre önceliklendirilmelidir.
+- Tamamlanan maddeler bu dosyada tutulmamalı; sonuçları `docs/roadmap.md` veya ilgili dokümana taşınmalıdır.
+- Önce demo/teslim güvenilirliği ve CUSTOMER sahipliği; ardından production sertleştirmesi önerilir.
